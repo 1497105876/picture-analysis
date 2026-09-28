@@ -23,6 +23,7 @@ def main() -> None:
     run("ruff check", [py, "-m", "ruff", "check", "."])
     run("ruff format --check", [py, "-m", "ruff", "format", "--check", "."])
     run("mypy", [py, "-m", "mypy", "app", "server.py"])
+    run("architecture check", [py, "scripts/check_arch.py"])
     run("pytest", [py, "-m", "pytest", "--cov=app", "--cov-report=term-missing"])
 
     package_json = ROOT / "frontend" / "package.json"

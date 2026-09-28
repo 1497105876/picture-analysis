@@ -216,7 +216,7 @@ CREATE VIEW v_directories AS SELECT id, path, recursive, offline, privacy FROM d
 | 字段语义稳定 | 本清单即契约；破坏性变更 = 升 `SCHEMA_VERSION` 并同步 `design.md` |
 | 提案批准前库零变化 | `proposals.status='pending'`；实体/标签在批准前**不出现**在 `entities`/`tags` |
 
-### 2.4 查询示例（随库提供 `docs/examples/`）
+### 2.4 查询示例（随库提供，见 [`docs/examples/direct_read.sql`](examples/direct_read.sql)）
 
 ```sql
 -- 上个月拍摄、分类为“风景”的可见图片

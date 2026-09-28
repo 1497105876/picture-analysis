@@ -31,6 +31,8 @@ jobs:
         run: ruff format --check .
       - name: Mypy
         run: mypy app server.py
+      - name: Architecture check
+        run: python scripts/check_arch.py
       - name: Pytest
         run: pytest --cov=app --cov-report=term-missing --cov-fail-under=80
 

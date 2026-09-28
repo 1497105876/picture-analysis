@@ -55,6 +55,7 @@ Push → Pull Request → CI 全绿 + 自审 diff → Squash 合并 → main
 |---|---|---|
 | backend-lint | `ruff check .` / `ruff format --check .` | 拒绝合并（风格与常见 bug） |
 | backend-type | `mypy app server.py` | 拒绝合并（类型即文档） |
+| backend-arch | `python scripts/check_arch.py` | 拒绝合并（依赖方向 + 直读契约完整性） |
 | backend-test | `pytest --cov=app --cov-fail-under=80` | 拒绝合并（AC 兜底） |
 | frontend-build | `npm ci && npm run build`（条件执行） | 拒绝合并 |
 | package | 打包 + `actions/upload-artifact` | 拒绝合并（交付物必须可产出） |

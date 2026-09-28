@@ -83,7 +83,7 @@
 | **OCP 开闭** | 策略接口化：`FusionStrategy`（RRF/加权）、`OcrTrigger`、`RatePolicy`、`Notifier`——新增策略 = 新增实现类，不改调用方 | 在搜索函数里 `if strategy == 'x'` 无限加分支 |
 | **LSP 里氏替换** | 任何 `Protocol` 实现可互换（FakeAI 可替换真 AI、内存时钟替换系统时钟），行为契约（超时语义、异常类型）一致 | Fake 实现偷偷返回成功掩盖故障 |
 | **ISP 接口隔离** | 接口按使用者拆分：`ImageReader`（worker 用）≠ `ImageWriter`（API 用）≠ `DirectReadView`（Agent 用） | 一个 30 方法的 `Repository` 接口强迫所有实现全实现 |
-| **DIP 依赖倒置** | `domain/` 定义 `Protocol`，`storage/ai/files/` 实现；服务层构造注入 | 领域层 `import sqlite3`、业务函数内 `requests.post(...)` |
+| **DIP 依赖倒置** | `domain/` 定义 `Protocol`，`storage/ai/files/` 实现；服务层构造注入 | 领域层 `import sqlite3`、业务函数内 `requests.post(...)`——**CI `scripts/check_arch.py` 拦截** |
 
 ### 其他核心原则
 

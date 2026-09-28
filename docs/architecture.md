@@ -94,7 +94,7 @@ picture-analysis/
 | domain | 无（标准库 only） | 任何 I/O、任何框架（FastAPI/SQLite） |
 | storage/ai/files | domain 定义的 Protocol | 被 domain 反向 import |
 
-> 违反上表 = 架构违规，CI 的 import-linter（或 ruff 自定义规则）负责拦截。
+> 违反上表 = 架构违规，CI 的 `scripts/check_arch.py`（AST 级 import 检查）负责拦截。
 
 ### 3.2 运行视图（进程内组件）
 
@@ -170,7 +170,7 @@ picture-analysis/
 
 ## 6. 架构守护（如何防止腐化）
 
-1. **依赖方向**：ruff import 规则 + 分层目录约定；CI 失败即拒绝合并
-2. **领域纯净**：`app/domain/` 不允许出现 sqlite/httpx/fastapi import（CI grep 拦截）
-3. **对外契约**：`docs/design.md` 的直读表结构变化 = 破坏性变更，必须同步文档 + 版本号
+1. **依赖方向**：`scripts/check_arch.py`（AST 级 import 检查）在本地 CI 与 GitHub Actions 强制执行，违规即拒绝合并
+2. **领域纯净**：`app/domain/` 禁止 import sqlite/httpx/fastapi 等 I/O 依赖与内层包——同脚本拦截
+3. **对外契约**：`check_arch.py` 同时校验 `design.md` 直读契约要素与 `docs/examples/direct_read.sql` 存在；表结构变化 = 破坏性变更，必须同步文档 + 版本号
 4. **软失败**：所有外部调用必须有超时与降级路径，测试见 `testing.md` 专项
