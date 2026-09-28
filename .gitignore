@@ -1,0 +1,50 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+
+# ---- 密钥与本地配置（密钥只进 .env，永不入库）----
+.env
+!.env.example
+
+# ---- 测试 / 静态检查 ----
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# ---- 运行时数据（数据库、缩略图、日志、缓存）----
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+storage/
+thumbnails/
+cache/
+logs/
+*.log
+
+# ---- 前端（Vue3 + Vite）----
+node_modules/
+frontend/dist/
+frontend/.vite/
+.vite/
+
+# ---- 打包产物（Release zip 由 CI 生成）----
+dist/
+build/
+release/
+*.zip
+
+# ---- IDE / 系统 ----
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
