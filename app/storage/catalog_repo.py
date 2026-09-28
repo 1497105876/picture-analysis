@@ -1,4 +1,5 @@
 """分类字典 / 规则 / 智能相册 / 提案 / 自定义字段 / 同义词 仓储。"""
+
 from __future__ import annotations
 
 from typing import Any
@@ -72,8 +73,14 @@ class CatalogRepo:
             row["action"] = loads(row.pop("action_json"), {})
         return rows
 
-    def add_rule(self, name: str, priority: int, condition: dict[str, Any],
-                 action: dict[str, Any], enabled: bool = True) -> int:
+    def add_rule(
+        self,
+        name: str,
+        priority: int,
+        condition: dict[str, Any],
+        action: dict[str, Any],
+        enabled: bool = True,
+    ) -> int:
         cursor = self._db.execute(
             "INSERT INTO rules(name, priority, enabled, condition_json, action_json, created_at) "
             "VALUES(?,?,?,?,?,?)",
@@ -83,8 +90,11 @@ class CatalogRepo:
 
     def update_rule(self, rule_id: int, **fields: Any) -> None:
         mapping = {
-            "name": "name", "priority": "priority", "enabled": "enabled",
-            "condition": "condition_json", "action": "action_json",
+            "name": "name",
+            "priority": "priority",
+            "enabled": "enabled",
+            "condition": "condition_json",
+            "action": "action_json",
         }
         pairs: list[tuple[str, Any]] = []
         for key, value in fields.items():
@@ -133,8 +143,9 @@ class CatalogRepo:
 
     # ---------- 提案队列 ----------
 
-    def add_proposal(self, ptype: str, payload: dict[str, Any], source: str,
-                     image_id: int | None = None) -> int:
+    def add_proposal(
+        self, ptype: str, payload: dict[str, Any], source: str, image_id: int | None = None
+    ) -> int:
         cursor = self._db.execute(
             "INSERT INTO proposals(type, payload_json, source, image_id, created_at) "
             "VALUES(?,?,?,?,?)",

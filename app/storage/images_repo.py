@@ -1,4 +1,5 @@
 """images / hidden_images 及其分析子表仓储。"""
+
 from __future__ import annotations
 
 from typing import Any
@@ -40,24 +41,18 @@ class ImagesRepo:
         return dict(row) if row else None
 
     def find_by_path(self, dir_id: int, path: str) -> dict[str, Any] | None:
-        row = self._db.query_one(
-            "SELECT * FROM images WHERE dir_id=? AND path=?", (dir_id, path)
-        )
+        row = self._db.query_one("SELECT * FROM images WHERE dir_id=? AND path=?", (dir_id, path))
         return dict(row) if row else None
 
     def find_by_md5(self, md5: str) -> list[dict[str, Any]]:
-        return rows_to_dicts(
-            self._db.query("SELECT * FROM images WHERE md5=? ORDER BY id", (md5,))
-        )
+        return rows_to_dicts(self._db.query("SELECT * FROM images WHERE md5=? ORDER BY id", (md5,)))
 
     def update(self, image_id: int, **fields: Any) -> None:
         if not fields:
             return
         fields["updated_at"] = now_iso()
         columns = ", ".join(f"{key}=?" for key in fields)
-        self._db.execute(
-            f"UPDATE images SET {columns} WHERE id=?", (*fields.values(), image_id)
-        )
+        self._db.execute(f"UPDATE images SET {columns} WHERE id=?", (*fields.values(), image_id))
 
     def update_any(self, image_id: int, **fields: Any) -> bool:
         """按当前所在表（可见/隐藏）更新，识别备份照常。"""
@@ -97,7 +92,9 @@ class ImagesRepo:
         columns = ", ".join(data)
         marks = ", ".join("?" for _ in data)
         with self._db.tx():
-            self._db.execute(f"INSERT INTO {target}({columns}) VALUES({marks})", tuple(data.values()))
+            self._db.execute(
+                f"INSERT INTO {target}({columns}) VALUES({marks})", tuple(data.values())
+            )
             self._db.execute(f"DELETE FROM {source} WHERE id=?", (image_id,))
         return True
 
@@ -112,12 +109,13 @@ class ImagesRepo:
         return [int(row["id"]) for row in rows]
 
     def ids_by_dir(self, dir_id: int) -> tuple[list[int], list[int]]:
-        visible = [int(r["id"]) for r in self._db.query(
-            "SELECT id FROM images WHERE dir_id=?", (dir_id,)
-        )]
-        hidden = [int(r["id"]) for r in self._db.query(
-            "SELECT id FROM hidden_images WHERE dir_id=?", (dir_id,)
-        )]
+        visible = [
+            int(r["id"]) for r in self._db.query("SELECT id FROM images WHERE dir_id=?", (dir_id,))
+        ]
+        hidden = [
+            int(r["id"])
+            for r in self._db.query("SELECT id FROM hidden_images WHERE dir_id=?", (dir_id,))
+        ]
         return visible, hidden
 
     def delete_by_dir(self, dir_id: int) -> int:
@@ -185,18 +183,30 @@ class ImagesRepo:
             self.fts_delete(image_id)
             return
         description = image["description_manual"] or image["description_ai"] or ""
-        tags = [row["name"] for row in self._db.query(
-            "SELECT t.name FROM image_tags jt JOIN tags t ON t.id=jt.tag_id WHERE jt.image_id=?",
-            (image_id,),
-        )]
-        tags += [row["tag"] for row in self._db.query(
-            "SELECT tag FROM ai_tags WHERE image_id=?", (image_id,)
-        )]
-        elements = [row["element"] for row in self._db.query(
-            "SELECT element FROM image_elements WHERE image_id=? ORDER BY rank", (image_id,)
-        )]
+        tags = [
+            row["name"]
+            for row in self._db.query(
+                "SELECT t.name FROM image_tags jt JOIN tags t ON t.id=jt.tag_id "
+                "WHERE jt.image_id=?",
+                (image_id,),
+            )
+        ]
+        tags += [
+            row["tag"]
+            for row in self._db.query("SELECT tag FROM ai_tags WHERE image_id=?", (image_id,))
+        ]
+        elements = [
+            row["element"]
+            for row in self._db.query(
+                "SELECT element FROM image_elements WHERE image_id=? ORDER BY rank", (image_id,)
+            )
+        ]
         self.fts_replace(
-            image_id, str(image["filename"]), str(description), tags, elements,
+            image_id,
+            str(image["filename"]),
+            str(description),
+            tags,
+            elements,
             str(image["notes"] or ""),
         )
 
@@ -216,7 +226,16 @@ class ImagesRepo:
         cursor = self._db.execute(
             "INSERT INTO analyses(image_id, category, description, has_text, model, "
             "tokens_in, tokens_out, created_at) VALUES(?,?,?,?,?,?,?,?)",
-            (image_id, category, description, int(has_text), model, tokens_in, tokens_out, now_iso()),
+            (
+                image_id,
+                category,
+                description,
+                int(has_text),
+                model,
+                tokens_in,
+                tokens_out,
+                now_iso(),
+            ),
         )
         return int(cursor.lastrowid or 0)
 
@@ -252,21 +271,30 @@ class ImagesRepo:
         return str(row["text"]) if row else ""
 
     def ai_tags_of(self, image_id: int) -> list[str]:
-        return [str(row["tag"]) for row in self._db.query(
-            "SELECT tag FROM ai_tags WHERE image_id=? ORDER BY rank", (image_id,)
-        )]
+        return [
+            str(row["tag"])
+            for row in self._db.query(
+                "SELECT tag FROM ai_tags WHERE image_id=? ORDER BY rank", (image_id,)
+            )
+        ]
 
     def elements_of(self, image_id: int) -> list[str]:
-        return [str(row["element"]) for row in self._db.query(
-            "SELECT element FROM image_elements WHERE image_id=? ORDER BY rank", (image_id,)
-        )]
+        return [
+            str(row["element"])
+            for row in self._db.query(
+                "SELECT element FROM image_elements WHERE image_id=? ORDER BY rank", (image_id,)
+            )
+        ]
 
     def manual_tags_of(self, image_id: int) -> list[str]:
-        return [str(row["name"]) for row in self._db.query(
-            "SELECT t.name FROM image_tags jt JOIN tags t ON t.id=jt.tag_id "
-            "WHERE jt.image_id=? ORDER BY t.name",
-            (image_id,),
-        )]
+        return [
+            str(row["name"])
+            for row in self._db.query(
+                "SELECT t.name FROM image_tags jt JOIN tags t ON t.id=jt.tag_id "
+                "WHERE jt.image_id=? ORDER BY t.name",
+                (image_id,),
+            )
+        ]
 
     def add_token_usage(
         self, image_id: int | None, purpose: str, model: str, tokens_in: int, tokens_out: int
@@ -321,9 +349,7 @@ class ImagesRepo:
     def all_vectors(self) -> dict[int, npt.NDArray[np.float32]]:
         result: dict[int, npt.NDArray[np.float32]] = {}
         for row in self._db.query("SELECT image_id, vector FROM image_vectors"):
-            result[int(row["image_id"])] = np.frombuffer(
-                bytes(row["vector"]), dtype=np.float32
-            )
+            result[int(row["image_id"])] = np.frombuffer(bytes(row["vector"]), dtype=np.float32)
         return result
 
     # ---------- 自定义字段值 ----------
@@ -345,9 +371,11 @@ class ImagesRepo:
         if isinstance(value, str) and len(value) == 10 and value[4] == "-":
             value_date = value
         self._db.execute(
-            "INSERT INTO custom_field_values(field_id, image_id, value_text, value_num, value_date) "
-            "VALUES(?,?,?,?,?) ON CONFLICT(field_id, image_id) DO UPDATE SET "
-            "value_text=excluded.value_text, value_num=excluded.value_num, value_date=excluded.value_date",
+            "INSERT INTO custom_field_values(field_id, image_id, value_text, "
+            "value_num, value_date) VALUES(?,?,?,?,?) "
+            "ON CONFLICT(field_id, image_id) DO UPDATE SET "
+            "value_text=excluded.value_text, value_num=excluded.value_num, "
+            "value_date=excluded.value_date",
             (field_id, image_id, value_text, value_num, value_date),
         )
 

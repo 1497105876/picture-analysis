@@ -1,4 +1,5 @@
 """检索仓储：筛选、FTS、向量、cursor 分页、历史与同义词。"""
+
 from __future__ import annotations
 
 import base64
@@ -66,14 +67,10 @@ class SearchRepo:
             clauses.append(f"{table}.favorite = ?")
             params.append(int(filters.favorite))
         if filters.date_from:
-            clauses.append(
-                f"COALESCE({table}.exif_taken_at, {table}.created_at) >= ?"
-            )
+            clauses.append(f"COALESCE({table}.exif_taken_at, {table}.created_at) >= ?")
             params.append(filters.date_from)
         if filters.date_to:
-            clauses.append(
-                f"COALESCE({table}.exif_taken_at, {table}.created_at) <= ?"
-            )
+            clauses.append(f"COALESCE({table}.exif_taken_at, {table}.created_at) <= ?")
             params.append(filters.date_to)
         if filters.analysis_state:
             clauses.append(f"{table}.analysis_state = ?")
@@ -81,14 +78,14 @@ class SearchRepo:
         for tag in filters.tags:
             if filters.hidden:
                 clauses.append(
-                    "EXISTS (SELECT 1 FROM ai_tags t WHERE t.image_id = "
-                    f"{table}.id AND t.tag = ?)"
+                    f"EXISTS (SELECT 1 FROM ai_tags t WHERE t.image_id = {table}.id AND t.tag = ?)"
                 )
             else:
                 clauses.append(
                     "EXISTS (SELECT 1 FROM image_tags jt JOIN tags tg ON tg.id = jt.tag_id "
                     f"WHERE jt.image_id = {table}.id AND tg.name = ?)"
-                    f" OR EXISTS (SELECT 1 FROM ai_tags t WHERE t.image_id = {table}.id AND t.tag = ?)"
+                    f" OR EXISTS (SELECT 1 FROM ai_tags t WHERE t.image_id = {table}.id "
+                    f"AND t.tag = ?)"
                 )
                 params.append(tag)
             params.append(tag)
@@ -129,9 +126,7 @@ class SearchRepo:
                 cursor_value, cursor_id = None, 0
             op = "<" if direction == "DESC" else ">"
             joiner = " AND " if where_sql else " WHERE "
-            sql += (
-                f"{joiner}({column} {op} ? OR ({column} = ? AND {table}.id {op} ?))"
-            )
+            sql += f"{joiner}({column} {op} ? OR ({column} = ? AND {table}.id {op} ?))"
             page_params = [*page_params, cursor_value, cursor_value, cursor_id]
         sql += f" ORDER BY {column} {direction}, {table}.id {direction} LIMIT ?"
         page_params.append(limit + 1)
@@ -192,9 +187,7 @@ class SearchRepo:
         if not rows:
             return []
         ids = [int(row["image_id"]) for row in rows]
-        matrix = np.vstack(
-            [np.frombuffer(bytes(row["vector"]), dtype=np.float32) for row in rows]
-        )
+        matrix = np.vstack([np.frombuffer(bytes(row["vector"]), dtype=np.float32) for row in rows])
         if matrix.shape[1] != query.size:
             return []
         norms = np.linalg.norm(matrix, axis=1)
@@ -213,9 +206,7 @@ class SearchRepo:
         )
 
     def list_history(self, limit: int = 50) -> list[str]:
-        rows = self._db.query(
-            "SELECT query FROM search_history ORDER BY id DESC LIMIT ?", (limit,)
-        )
+        rows = self._db.query("SELECT query FROM search_history ORDER BY id DESC LIMIT ?", (limit,))
         return [str(row["query"]) for row in rows]
 
     def clear_history(self) -> None:

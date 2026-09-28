@@ -1,4 +1,5 @@
 """资料库实体仓储（实体卡 / 别名 / 关联图 / 参考图 / 向量）。"""
+
 from __future__ import annotations
 
 from typing import Any
@@ -14,8 +15,9 @@ class EntitiesRepo:
     def __init__(self, db: Database) -> None:
         self._db = db
 
-    def add(self, name: str, category: str, description: str,
-            aliases: list[str] | None = None) -> int:
+    def add(
+        self, name: str, category: str, description: str, aliases: list[str] | None = None
+    ) -> int:
         cursor = self._db.execute(
             "INSERT INTO entities(name, category, description, active, created_at) "
             "VALUES(?,?,?,1,?)",
@@ -60,17 +62,26 @@ class EntitiesRepo:
         data = dict(row)
         data.pop("vector", None)
         data.pop("vector_dim", None)
-        data["aliases"] = [str(r["alias"]) for r in self._db.query(
-            "SELECT alias FROM entity_aliases WHERE entity_id=? ORDER BY alias", (entity_id,)
-        )]
-        data["reference_images"] = [dict(r) for r in self._db.query(
-            "SELECT id, path, sort FROM reference_images WHERE entity_id=? ORDER BY sort, id",
-            (entity_id,),
-        )]
-        data["linked_image_ids"] = [int(r["image_id"]) for r in self._db.query(
-            "SELECT image_id FROM entity_images WHERE entity_id=? ORDER BY image_id",
-            (entity_id,),
-        )]
+        data["aliases"] = [
+            str(r["alias"])
+            for r in self._db.query(
+                "SELECT alias FROM entity_aliases WHERE entity_id=? ORDER BY alias", (entity_id,)
+            )
+        ]
+        data["reference_images"] = [
+            dict(r)
+            for r in self._db.query(
+                "SELECT id, path, sort FROM reference_images WHERE entity_id=? ORDER BY sort, id",
+                (entity_id,),
+            )
+        ]
+        data["linked_image_ids"] = [
+            int(r["image_id"])
+            for r in self._db.query(
+                "SELECT image_id FROM entity_images WHERE entity_id=? ORDER BY image_id",
+                (entity_id,),
+            )
+        ]
         return data
 
     def get_by_name(self, name: str) -> dict[str, Any] | None:
@@ -115,9 +126,9 @@ class EntitiesRepo:
 
     def all_active_with_aliases(self) -> list[dict[str, Any]]:
         entities = []
-        for row in rows_to_dicts(self._db.query(
-            "SELECT * FROM entities WHERE active=1 ORDER BY id"
-        )):
+        for row in rows_to_dicts(
+            self._db.query("SELECT * FROM entities WHERE active=1 ORDER BY id")
+        ):
             aliases = self._db.query(
                 "SELECT alias FROM entity_aliases WHERE entity_id=?", (row["id"],)
             )

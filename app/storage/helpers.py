@@ -1,12 +1,12 @@
 """仓储公共工具。"""
+
 from __future__ import annotations
 
 import json
 import logging
 from collections.abc import Callable
-from typing import Any
-
 from sqlite3 import Row
+from typing import Any
 
 _CUTTER: Callable[[str], list[str]] | None = None
 

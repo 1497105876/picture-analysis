@@ -1,4 +1,5 @@
 """任务队列仓储（jobs / job_events）。"""
+
 from __future__ import annotations
 
 import json
@@ -36,8 +37,17 @@ class JobsRepo:
         cursor = self._db.execute(
             "INSERT INTO jobs(type, image_id, dir_id, state, priority, payload_json, "
             "max_attempts, created_at, updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
-            (job_type, image_id, dir_id, "pending", priority,
-             json.dumps(payload or {}, ensure_ascii=False), max_attempts, now, now),
+            (
+                job_type,
+                image_id,
+                dir_id,
+                "pending",
+                priority,
+                json.dumps(payload or {}, ensure_ascii=False),
+                max_attempts,
+                now,
+                now,
+            ),
         )
         return int(cursor.lastrowid or 0)
 
@@ -90,8 +100,13 @@ class JobsRepo:
         )
 
     def transition(
-        self, job_id: int, state: str, *, error: str | None = None,
-        retry_at: float | None = None, bump_attempt: bool = False,
+        self,
+        job_id: int,
+        state: str,
+        *,
+        error: str | None = None,
+        retry_at: float | None = None,
+        bump_attempt: bool = False,
     ) -> None:
         sets = ["state=?", "updated_at=?"]
         params: list[Any] = [state, now_iso()]
@@ -124,13 +139,13 @@ class JobsRepo:
         )
 
     def events(self, job_id: int, limit: int = 100) -> list[dict[str, Any]]:
-        return rows_to_dicts(self._db.query(
-            "SELECT * FROM job_events WHERE job_id=? ORDER BY id DESC LIMIT ?",
-            (job_id, limit),
-        ))
+        return rows_to_dicts(
+            self._db.query(
+                "SELECT * FROM job_events WHERE job_id=? ORDER BY id DESC LIMIT ?",
+                (job_id, limit),
+            )
+        )
 
     def clear_finished(self) -> int:
-        cursor = self._db.execute(
-            "DELETE FROM jobs WHERE state IN ('succeeded','dead')"
-        )
+        cursor = self._db.execute("DELETE FROM jobs WHERE state IN ('succeeded','dead')")
         return cursor.rowcount

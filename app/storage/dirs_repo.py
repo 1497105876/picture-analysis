@@ -1,4 +1,5 @@
 """directories 表仓储：手动登记目录的唯一读写入口。"""
+
 from __future__ import annotations
 
 import json
@@ -31,8 +32,16 @@ class DirectoriesRepo:
                                                privacy=excluded.privacy,
                                                ocr_policy=excluded.ocr_policy,
                                                watcher=excluded.watcher""",
-            (path, int(recursive), int(privacy), ocr_policy, int(watcher), source,
-             json.dumps(profile or {}, ensure_ascii=False), now_iso()),
+            (
+                path,
+                int(recursive),
+                int(privacy),
+                ocr_policy,
+                int(watcher),
+                source,
+                json.dumps(profile or {}, ensure_ascii=False),
+                now_iso(),
+            ),
         )
         row = self._db.query_one("SELECT id FROM directories WHERE path=?", (path,))
         if row is None:
@@ -63,16 +72,23 @@ class DirectoriesRepo:
         return result
 
     def update(self, dir_id: int, **fields: Any) -> None:
-        allowed = {"recursive", "enabled", "offline", "privacy", "frozen", "watcher",
-                   "ocr_policy", "last_scanned_at", "profile_json"}
+        allowed = {
+            "recursive",
+            "enabled",
+            "offline",
+            "privacy",
+            "frozen",
+            "watcher",
+            "ocr_policy",
+            "last_scanned_at",
+            "profile_json",
+        }
         pairs = [(key, value) for key, value in fields.items() if key in allowed]
         if not pairs:
             return
         columns = ", ".join(f"{key}=?" for key, _ in pairs)
         values = [value for _, value in pairs]
-        self._db.execute(
-            f"UPDATE directories SET {columns} WHERE id=?", (*values, dir_id)
-        )
+        self._db.execute(f"UPDATE directories SET {columns} WHERE id=?", (*values, dir_id))
 
     def remove(self, dir_id: int) -> None:
         self._db.execute("DELETE FROM directories WHERE id=?", (dir_id,))

@@ -1,4 +1,5 @@
 """设置 / 审计 / 通知 / 统计 / 重复组 仓储。"""
+
 from __future__ import annotations
 
 import json
@@ -36,15 +37,19 @@ class SettingsRepo:
         self._db.execute(
             "INSERT INTO audit_log(scope, key, before_json, after_json, action, created_at) "
             "VALUES('settings',?,?,?,?,?)",
-            (key,
-             json.dumps(before, ensure_ascii=False) if before is not None else None,
-             json.dumps(value, ensure_ascii=False), action, now_iso()),
+            (
+                key,
+                json.dumps(before, ensure_ascii=False) if before is not None else None,
+                json.dumps(value, ensure_ascii=False),
+                action,
+                now_iso(),
+            ),
         )
 
     def audit(self, limit: int = 100) -> list[dict[str, Any]]:
-        rows = rows_to_dicts(self._db.query(
-            "SELECT * FROM audit_log ORDER BY id DESC LIMIT ?", (limit,)
-        ))
+        rows = rows_to_dicts(
+            self._db.query("SELECT * FROM audit_log ORDER BY id DESC LIMIT ?", (limit,))
+        )
         for row in rows:
             row["before"] = loads(row.pop("before_json"), None)
             row["after"] = loads(row.pop("after_json"), None)
@@ -70,9 +75,9 @@ class SettingsRepo:
         )
 
     def notices(self, limit: int = 50) -> list[dict[str, Any]]:
-        return rows_to_dicts(self._db.query(
-            "SELECT * FROM notices ORDER BY id DESC LIMIT ?", (limit,)
-        ))
+        return rows_to_dicts(
+            self._db.query("SELECT * FROM notices ORDER BY id DESC LIMIT ?", (limit,))
+        )
 
     def clear_notices(self) -> None:
         self._db.execute("DELETE FROM notices")
@@ -99,8 +104,12 @@ class StatsRepo:
             )
         ]
         storage = [
-            {"dir_id": int(row["dir_id"]), "path": row["path"], "bytes": int(row["b"] or 0),
-             "count": int(row["c"])}
+            {
+                "dir_id": int(row["dir_id"]),
+                "path": row["path"],
+                "bytes": int(row["b"] or 0),
+                "count": int(row["c"]),
+            }
             for row in self._db.query(
                 "SELECT i.dir_id, d.path, SUM(i.bytes) AS b, COUNT(*) AS c "
                 "FROM images i JOIN directories d ON d.id=i.dir_id "
@@ -113,7 +122,8 @@ class StatsRepo:
                 "SELECT analysis_state, COUNT(*) AS c FROM images GROUP BY analysis_state"
             )
         }
-        tokens = int(self._db.scalar("SELECT COALESCE(SUM(tokens_in+tokens_out),0) FROM token_usage") or 0)
+        token_sum = self._db.scalar("SELECT COALESCE(SUM(tokens_in+tokens_out),0) FROM token_usage")
+        tokens = int(token_sum or 0)
         hidden = int(self._db.scalar("SELECT COUNT(*) FROM hidden_images") or 0)
         return {
             "total": total,
@@ -126,19 +136,17 @@ class StatsRepo:
         }
 
     def md5_duplicate_groups(self) -> list[dict[str, Any]]:
-        rows = self._db.query(
-            "SELECT md5, COUNT(*) AS c FROM images GROUP BY md5 HAVING c > 1"
-        )
+        rows = self._db.query("SELECT md5, COUNT(*) AS c FROM images GROUP BY md5 HAVING c > 1")
         groups: list[dict[str, Any]] = []
         for row in rows:
-            images = rows_to_dicts(self._db.query(
-                "SELECT id, path, filename, bytes, mtime FROM images WHERE md5=? ORDER BY id",
-                (row["md5"],),
-            ))
+            images = rows_to_dicts(
+                self._db.query(
+                    "SELECT id, path, filename, bytes, mtime FROM images WHERE md5=? ORDER BY id",
+                    (row["md5"],),
+                )
+            )
             groups.append({"md5": row["md5"], "images": images})
         return groups
 
     def all_dhashes(self) -> list[dict[str, Any]]:
-        return rows_to_dicts(
-            self._db.query("SELECT id, path, dhash FROM images WHERE dhash <> ''")
-        )
+        return rows_to_dicts(self._db.query("SELECT id, path, dhash FROM images WHERE dhash <> ''"))

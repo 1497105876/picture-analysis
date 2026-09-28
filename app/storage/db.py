@@ -1,12 +1,14 @@
 """SQLite 连接与迁移：单连接 + 锁 + WAL（单机单进程写者模型）。"""
+
 from __future__ import annotations
 
 import sqlite3
 import threading
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterator, Sequence, cast
+from typing import Any, cast
 
 MIGRATIONS_DIR = Path(__file__).resolve().parent / "migrations"
 
