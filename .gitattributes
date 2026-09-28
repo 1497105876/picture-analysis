@@ -1,0 +1,7 @@
+# git 提交时统一换行，避免 Windows/Linux 来回转换产生噪音 diff
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.zip binary
