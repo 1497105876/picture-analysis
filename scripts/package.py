@@ -24,7 +24,14 @@ def main() -> None:
         shutil.rmtree(stage)
     stage.mkdir(parents=True)
 
-    keep_files = ["server.py", "README.md", ".env.example", "pyproject.toml"]
+    keep_files = [
+        "server.py",
+        "README.md",
+        ".env.example",
+        "pyproject.toml",
+        "start.bat",
+        "start.sh",
+    ]
     keep_dirs = ["app", "docs"]
     for file_name in keep_files:
         src = ROOT / file_name

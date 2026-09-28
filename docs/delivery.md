@@ -44,7 +44,7 @@ Push → Pull Request → CI 全绿 + 自审 diff → Squash 合并 → main
                        │
                  ┌─────▼──────┐
                  │  frontend  │  仅当存在 frontend/package.json 时：npm ci + build
-                 └─────┬──────┘   （当前阶段无前端，任务自动跳过）
+                  └─────┬──────┘   （有 frontend/ 则 npm ci + npm run build）
                        │
                  ┌─────▼──────┐
                  │  package   │  组装 Release 目录 → 上传 artifact

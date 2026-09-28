@@ -253,18 +253,20 @@ WHERE image_fts MATCH '傍晚 海岸';
 | GET | `/api/images` | 图片列表：`q`、`cursor`、`limit`、多维筛选、排序 |
 | GET | `/api/images/{id}` | 详情（含 AI 原始产出、OCR、纠错史） |
 | PATCH | `/api/images/{id}` | 人工修正（分类/描述/标签/评分/收藏/备注/自定义字段） |
-| POST | `/api/images/{id}/hide` \| `/unhide` | 隐藏 / 恢复（支持批量 `ids`） |
+| POST | `/api/images/{id}/hide` \| `/unhide` | 隐藏 / 恢复（单张；批量走 `/api/images/batch`） |
+| POST | `/api/images/batch` | 批量操作：`{op: hide\|unhide\|delete\|patch, ids, payload}` |
 | POST | `/api/images/{id}/redo` | 打回重识别（带 `feedback`） |
 | DELETE | `/api/images/{id}` | 删除（`?mode=index` 默认 / `?mode=source` 走回收站） |
+| GET | `/api/images/{id}/similar` | 以图搜图 |
+| POST | `/api/export` | 导出元数据（json/csv，可剥离 EXIF） |
 | GET | `/api/search` | 混合检索（关键词+语义 RRF，`mode` 默认 `hybrid`） |
-| GET | `/api/similar/{id}` | 以图搜图 |
 | GET | `/api/stats/dashboard` | 仪表盘聚合 |
 | GET/POST/PATCH | `/api/entities`… | 资料库实体 CRUD + 参考图 |
 | GET/POST/PATCH | `/api/rules`… | 规则 CRUD + `POST /api/rules/try` 试跑 |
 | GET/POST/PATCH | `/api/albums`… | 智能相册 CRUD 与回放 |
 | GET/POST | `/api/categories` | 分类字典（内置 6 类不可删改） |
 | GET/POST | `/api/proposals` · `POST /api/proposals/{id}/approve`\|`/reject` | 提案队列与批准 |
-| GET/POST | `/api/chat` | 对话问答（SSE 流式可选，超字数 400 截断） |
+| GET/POST | `/api/chat` | 对话问答（一次性 JSON 应答，超字数 400 截断；不走 SSE） |
 | GET/POST | `/api/jobs` · `POST /api/jobs/{id}/cancel` | 队列任务查询/停止（实时进度） |
 | GET/PUT | `/api/settings` | schema 驱动配置（`GET` 返回分组+控件 schema 与当前值） |
 | POST | `/api/settings/test` | 连接探测 |
@@ -416,3 +418,30 @@ VLM 请求（prompt 含“has_text 布尔字段”）
 | 脱敏 | 密钥、`.env` 值、Authorization 头一律 `***`（**安全 AC**） |
 | 结构 | `时间 级别 模块 消息 key=value`；任务事件另入 `job_events` 供 UI 进度回放 |
 | 关键埋点 | 扫描吞吐、识图延迟/重试数、限速等待时长、检索耗时（分路）、直读无（不介入） |
+
+---
+
+## 9. 实现口径记录（设计稿 → 代码的定案与偏差）
+
+实现阶段固化的口径，后续改动先改本文档再改代码：
+
+1. **排序字段校验位置**：`GET /api/images` 的 `sort` 白名单校验放在
+   `app/services/search_svc.validate_sort()`——API 层禁止直连 `app.storage`
+   （`check_arch.py` 强制），故不在路由内 import `SORT_COLUMNS`。
+2. **两阶段登记**：单端点 `POST /api/directories`——不带 `confirm` 返回预估，
+   带 `?confirm=1` 落库并入队扫描（与 3.1 表一致）。
+3. **批量操作**：统一 `POST /api/images/batch {op: hide|unhide|delete|patch, ids, payload}`；
+   `delete` 批量仅支持 `mode=index`（源文件删除必须逐张确认词）。
+4. **限速 / 日预算 / 无密钥暂停**：`jobs.retry_at = NULL`，恢复时刻完全由可注入
+   时钟的限速器与预算判定给出（避免 epoch 时钟与注入时钟混用）；`resume_paused`
+   遇 `rate` 暂停立即回 pending，由最小间隔保证不忙转。
+5. **日预算判定日界**：`_today()` 使用 UTC（与 `now_iso()` 同源），防止本地时区
+   与 UTC 混用导致日预算恒为 0。
+6. **缺失文件**：`images.missing` 标志列（扫描刷新），记录不删、卡片标红「文件丢失」。
+7. **磁盘统计**：Windows 无 `os.statvfs` → 回退 `shutil.disk_usage`。
+8. **任务优先级**：`analyze` 普通入队 priority=10、打回重识别=100、`scan`/`embed`=0
+   （`next_pending` 按 `priority DESC, id ASC`）。
+9. **对话应答**：一次性 JSON（`POST /api/chat`），不做 SSE；失败软降级为引导语 +
+   关键词检索结果。
+10. **静态托管**：`app/main.py` 优先 `frontend/dist`，回退 `app/static`；
+    `scripts/package.py` 打包时把 `frontend/dist` 复制进 `app/static`。
