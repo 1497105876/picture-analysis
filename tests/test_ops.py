@@ -75,10 +75,15 @@ def test_trash_restore_and_clear(client: TestClient, library: Path, fake_clock: 
     assert path.is_file()
     assert client.get("/api/trash").json()["items"] == []
 
+    # 恢复后按路径重新定位（重新入库可能产生新 id，不能复用旧 id）
+    items2 = client.get("/api/images").json()["items"]
+    match = [i for i in items2 if i["path"] == str(path)]
+    assert match, "恢复后图片应重新入库"
+
     # 再删一次 → 清空
     client.request(
         "DELETE",
-        f"/api/images/{target['id']}",
+        f"/api/images/{match[0]['id']}",
         params={"mode": "source", "confirm": path.name},
     )
     cleared = client.request("DELETE", "/api/trash", params={"confirm": "清空回收站"}).json()
