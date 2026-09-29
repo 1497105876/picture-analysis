@@ -1,7 +1,10 @@
 """架构守护（CI 门禁）：依赖方向 + 直读契约存在性。
 
-规则来源：docs/architecture.md 第 3.1/6 章、docs/design.md 第 2 章。
+规则来源：docs/第一次/architecture.md 第 3.1/6 章、docs/第一次/design.md 第 2 章。
 用法：python scripts/check_arch.py   （违规退出码 1）
+
+文档按轮归档（docs/第一次、docs/第二次），这里只认第一轮的设计文档——
+直读契约是它定义的，改了必须同步。
 """
 
 from __future__ import annotations
@@ -73,16 +76,17 @@ def check_layer(
 
 
 def check_contract(errors: list[str]) -> None:
-    design = ROOT / "docs" / "design.md"
+    design = ROOT / "docs" / "第一次" / "design.md"
+    rel = "docs/第一次/design.md"
     if not design.is_file():
-        errors.append("缺少 docs/design.md（直读契约文档）")
+        errors.append(f"缺少 {rel}（直读契约文档）")
         return
     text = design.read_text(encoding="utf-8")
     for marker in REQUIRED_CONTRACT_MARKERS:
         if marker not in text:
-            errors.append(f"docs/design.md 缺少直读契约要素：`{marker}`")
-    if not (ROOT / "docs" / "examples" / "direct_read.sql").is_file():
-        errors.append("缺少 docs/examples/direct_read.sql（随库直读示例）")
+            errors.append(f"{rel} 缺少直读契约要素：`{marker}`")
+    if not (ROOT / "docs" / "第一次" / "examples" / "direct_read.sql").is_file():
+        errors.append("缺少 docs/第一次/examples/direct_read.sql（随库直读示例）")
 
 
 def main() -> int:

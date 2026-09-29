@@ -56,9 +56,26 @@ ruff check . && ruff format .
 mypy app server.py
 ```
 
+前端（Vue3 + Vite，零运行时新依赖：只有 vue / vue-router）：
+
+```bash
+cd frontend
+npm install
+npm run dev        # 开发态：5173，/api 已代理到 8321
+npm run build      # 产物进 frontend/dist，后端 main.py 直接托管
+```
+
+> 改完前端记得 `npm run build`：后端托管的是 `frontend/dist`，不是源码。
+> 开发态用 `npm run dev` 更方便，但那时要同时把后端跑起来（代理目标 127.0.0.1:8321）。
+
 ## 项目状态
 
-M1–M7 全部实现并接入 CI（88 用例 / 覆盖率 88% / ruff+mypy+架构门禁全绿），早期阶段功能完整、部分界面入口待补——**界面上看不到的功能见 [docs/使用指南.md](docs/使用指南.md) 第 9 节差距清单**。
+M1–M7 后端全部实现并接入 CI（88 用例 / 覆盖率 88% / ruff+mypy+架构门禁全绿）。
+**第二轮已对前端做彻底重写**：设计令牌化（亮/暗 × 6 套强调色 × 密度）、组件层抽取、
+14 个页面重建，并把原先「有 API 无界面」的通知中心、日志查看器、分类字典、自定义字段、
+改名/移动、目录策略、SQLite 直读契约等能力全部做成界面——分析与方案见
+[docs/第二次/01-前端功能分析.md](docs/第二次/01-前端功能分析.md) 与
+[docs/第二次/02-重构方案.md](docs/第二次/02-重构方案.md)。
 
 ## 许可证
 
