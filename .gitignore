@@ -50,5 +50,5 @@ frontend/.vite/
 .DS_Store
 Thumbs.db
 
-# 用户本地笔记，不入库
-docs/几个问题.txt
+# 用户本地笔记，不入库（任何目录下同名文件）
+**/几个问题.txt

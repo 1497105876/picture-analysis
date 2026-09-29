@@ -135,6 +135,7 @@
 | F6 打回带纠正说明 | `test_redo_carries_feedback` | API |
 | F7 三路注入 | `test_reference_injection_three_routes` | 单元+API |
 | F8 删除双模式/回收站 | `test_delete_index_only` / `test_delete_source_to_trash` | API |
+| F8 删除索引后不再回扫 | `test_deleted_index_not_rescanned` | API |
 | F9 拖拽/翻页 | E2E `test_dnd_import` / `test_lightbox_nav` | E2E |
 | F10 watcher ≤35s | `test_watcher_ingest_under_35s` | 集成（标记 slow） |
 | F11 提案零变化 | `test_proposal_no_db_change_until_approve` | API |

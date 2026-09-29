@@ -20,6 +20,7 @@
 | 图片 | `images` | 可见图片主表（隐藏图片物理移出，见 1.4） |
 | 图片 | `hidden_images` | 隐藏区图片（同结构，**不在任何文档化对象中**） |
 | 图片 | `trash` | 删除源文件的回收站记录 |
+| 图片 | `excluded_images` | 只删索引后的路径排除（增量扫描墓碑，随目录注销清除） |
 | 分析 | `analyses` | AI 识图产出（append-only 历史） |
 | 分析 | `ai_tags` | AI 标签（与人工标签分开） |
 | 分析 | `image_elements` | AI 元素清单 |
@@ -443,5 +444,10 @@ VLM 请求（prompt 含“has_text 布尔字段”）
    （`next_pending` 按 `priority DESC, id ASC`）。
 9. **对话应答**：一次性 JSON（`POST /api/chat`），不做 SSE；失败软降级为引导语 +
    关键词检索结果。
+10. **删除索引不回扫**：`manage_svc.delete(mode=index)` 除删行外落一条
+    `excluded_images(dir_id, path)` 墓碑，`ScanOptions.exclude_paths` 在 `iter_files`
+    遍历期跳过该路径——增量扫描与导入向导预估读同一份集合，张数不会对不上；
+    `mode=source` 不登记（源文件已进回收站，恢复后照常重新入库）。墓碑随目录注销
+    一并清除：注销 + 重新登记 = 全量重来，也是唯一恢复入口。
 10. **静态托管**：`app/main.py` 优先 `frontend/dist`，回退 `app/static`；
     `scripts/package.py` 打包时把 `frontend/dist` 复制进 `app/static`。

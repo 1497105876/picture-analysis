@@ -33,14 +33,19 @@ python server.py            # → http://127.0.0.1:8321
 
 | 文档 | 内容 |
 |---|---|
-| [docs/需求与功能清单.md](docs/需求与功能清单.md) | 需求基线：功能 F1-F15、配置组 G1-G18、效果要求 |
-| [docs/srs.md](docs/srs.md) | 软件需求规格说明（FR 需求条目 + AC 验收基线） |
-| [docs/architecture.md](docs/architecture.md) | 架构设计：分层视图、模块职责、技术选型 |
-| [docs/design.md](docs/design.md) | 详细设计：数据库 DDL、**SQLite 直读契约**、REST API、状态机、限速器 |
-| [docs/quality.md](docs/quality.md) | 质量属性场景（健壮/可靠/性能/安全…）、设计原则与工程原则落地 |
-| [docs/testing.md](docs/testing.md) | 测试策略、夹具、专项用例、AC 追踪矩阵、性能基准 |
-| [docs/delivery.md](docs/delivery.md) | 集成与持续交付（**无部署**）：CI 门禁、发布流程 |
-| [docs/adr/](docs/adr/) | 关键架构决策记录（ADR-001~005） |
+| [docs/第二次/01-前端功能分析.md](docs/第二次/01-前端功能分析.md) | **前端重写起点**：现有功能模块盘点、架构现状、缺陷清单、差距清单 |
+| [docs/第二次/02-重构方案.md](docs/第二次/02-重构方案.md) | 第二轮前端重构方案：技术决策、设计系统、页面清单、验收标准 |
+| [docs/第一次/使用指南.md](docs/第一次/使用指南.md) | 使用指南与产品介绍：安装、上手流程、F1-F15/G1-G18 全景与状态 |
+| [docs/第一次/需求与功能清单.md](docs/第一次/需求与功能清单.md) | 需求基线：功能 F1-F15、配置组 G1-G18、效果要求 |
+| [docs/第一次/srs.md](docs/第一次/srs.md) | 软件需求规格说明（FR 需求条目 + AC 验收基线） |
+| [docs/第一次/architecture.md](docs/第一次/architecture.md) | 架构设计：分层视图、模块职责、技术选型 |
+| [docs/第一次/design.md](docs/第一次/design.md) | 详细设计：数据库 DDL、**SQLite 直读契约**、REST API、状态机、限速器 |
+| [docs/第一次/quality.md](docs/第一次/quality.md) | 质量属性场景（健壮/可靠/性能/安全…）、设计原则与工程原则落地 |
+| [docs/第一次/testing.md](docs/第一次/testing.md) | 测试策略、夹具、专项用例、AC 追踪矩阵、性能基准 |
+| [docs/第一次/delivery.md](docs/第一次/delivery.md) | 集成与持续交付（**无部署**）：CI 门禁、发布流程 |
+| [docs/第一次/adr/](docs/第一次/adr/) | 关键架构决策记录（ADR-001~005） |
+
+> 文档分轮归档：`docs/第一次` 是需求→设计→实现的第一轮产出，`docs/第二次` 是前端彻底重写的分析与方案。
 
 ## 开发
 
@@ -53,7 +58,7 @@ mypy app server.py
 
 ## 项目状态
 
-早期阶段（M1 骨架中）。需求与设计文档已就绪，实现按里程碑推进，验收一票否决制——详见 `docs/srs.md` 第 6 章。
+M1–M7 全部实现并接入 CI（88 用例 / 覆盖率 88% / ruff+mypy+架构门禁全绿），早期阶段功能完整、部分界面入口待补——**界面上看不到的功能见 [docs/使用指南.md](docs/使用指南.md) 第 9 节差距清单**。
 
 ## 许可证
 
