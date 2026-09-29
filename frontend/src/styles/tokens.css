@@ -1,0 +1,204 @@
+/* ==========================================================================
+   tokens.css — 设计令牌（唯一的取值来源）
+   变量分三层：
+     ① 模式层  :root / [data-theme="dark"]  中性色、层次色、语义色
+     ② 主题层  [data-accent="*"]            只定义强调色三件套
+     ③ 派生层  由强调色算出的软色/边框，随主题自动跟随
+   组件里永远只允许出现 var(--xxx)，不允许硬编码色值与 magic number。
+   ========================================================================== */
+
+/* ---------- ① 模式层：亮色（默认） ---------- */
+:root {
+  color-scheme: light;
+
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #f2f4f7;
+  --surface-3: #e8ebf0;
+  --surface-inset: #fafbfc;
+
+  --text: #16181d;
+  --text-2: #5c6472;
+  --text-3: #8a93a2;
+
+  --line: #e3e7ed;
+  --line-strong: #cbd2dc;
+
+  /* 语义色（亮色版，正文对比度 ≥ 4.5:1） */
+  --ok: #0f7a45;
+  --warn: #8a5300;
+  --danger: #c2261f;
+  --ok-soft: #e6f4ec;
+  --warn-soft: #fdf1dd;
+  --danger-soft: #fdecea;
+  --ok-line: #a8d8bd;
+  --warn-line: #f0cf97;
+  --danger-line: #f2b8b4;
+
+  --shadow-1: 0 1px 2px rgba(16, 24, 40, 0.05), 0 1px 3px rgba(16, 24, 40, 0.04);
+  --shadow-2: 0 4px 14px rgba(16, 24, 40, 0.08);
+  --shadow-3: 0 18px 44px rgba(16, 24, 40, 0.18);
+  --overlay: rgba(16, 24, 40, 0.42);
+  --skeleton: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 37%, var(--surface-2) 63%);
+}
+
+/* ---------- ① 模式层：暗色 ---------- */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0e1116;
+  --surface: #161b22;
+  --surface-2: #1c222b;
+  --surface-3: #242b36;
+  --surface-inset: #12171e;
+
+  --text: #e8ecf2;
+  --text-2: #98a3b3;
+  --text-3: #6f7a89;
+
+  --line: #262d38;
+  --line-strong: #39414e;
+
+  --ok: #4cc38a;
+  --warn: #e0a33a;
+  --danger: #f2706e;
+  --ok-soft: #14291f;
+  --warn-soft: #2c2415;
+  --danger-soft: #2d1a1a;
+  --ok-line: #22543a;
+  --warn-line: #5c4a1e;
+  --danger-line: #5c2a29;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 4px 14px rgba(0, 0, 0, 0.45);
+  --shadow-3: 0 18px 44px rgba(0, 0, 0, 0.6);
+  --overlay: rgba(0, 0, 0, 0.62);
+}
+
+/* ---------- ② 主题层：强调色六套 ---------- */
+[data-accent="azure"] {
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-contrast: #ffffff;
+}
+[data-accent="indigo"] {
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --accent-contrast: #ffffff;
+}
+[data-accent="teal"] {
+  --accent: #0d8a7a;
+  --accent-hover: #0b6f62;
+  --accent-contrast: #ffffff;
+}
+[data-accent="violet"] {
+  --accent: #7c3aed;
+  --accent-hover: #6d28d9;
+  --accent-contrast: #ffffff;
+}
+[data-accent="amber"] {
+  --accent: #b45309;
+  --accent-hover: #92400e;
+  --accent-contrast: #ffffff;
+}
+[data-accent="graphite"] {
+  --accent: #475569;
+  --accent-hover: #334155;
+  --accent-contrast: #ffffff;
+}
+/* 暗色下强调色提亮，避免在深底上发闷 */
+[data-theme="dark"] {
+  --accent-hover: color-mix(in srgb, var(--accent) 84%, #ffffff);
+}
+[data-theme="dark"][data-accent="amber"] {
+  --accent: #d97706;
+}
+[data-theme="dark"][data-accent="graphite"] {
+  --accent: #94a3b8;
+  --accent-contrast: #0e1116;
+}
+
+/* ---------- ③ 派生层 ---------- */
+:root {
+  --accent-soft: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  --accent-soft-2: color-mix(in srgb, var(--accent) 22%, var(--surface));
+  --accent-line: color-mix(in srgb, var(--accent) 34%, transparent);
+  --accent-text: var(--accent);
+}
+[data-theme="dark"] {
+  --accent-soft: color-mix(in srgb, var(--accent) 20%, var(--surface));
+  --accent-soft-2: color-mix(in srgb, var(--accent) 32%, var(--surface));
+  --accent-text: color-mix(in srgb, var(--accent) 76%, #ffffff);
+}
+
+/* ---------- 尺度：8px 基线 ---------- */
+:root {
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+  --sp-8: 64px;
+
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 16px;
+  --radius-full: 999px;
+
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-base: 13px;
+  --fs-md: 14px;
+  --fs-lg: 16px;
+  --fs-xl: 20px;
+  --fs-2xl: 26px;
+  --fs-3xl: 32px;
+
+  --lh-tight: 1.3;
+  --lh: 1.6;
+
+  --sidebar-w: 236px;
+  --topbar-h: 56px;
+  --content-max: 1480px;
+  --drawer-w: 620px;
+}
+
+/* ---------- 字体：CJK 优先，纯系统字，离线可用 ---------- */
+:root {
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, "PingFang SC",
+    "HarmonyOS Sans SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Mono", "Sarasa Mono SC", Consolas, "Courier New",
+    monospace;
+}
+
+/* ---------- 密度 ---------- */
+:root {
+  --grid-gap: 16px;
+  --card-min: 208px;
+  --card-pad: 10px;
+  --panel-pad: 16px;
+  --cell-pad: 10px 12px;
+}
+[data-density="compact"] {
+  --grid-gap: 10px;
+  --card-min: 152px;
+  --card-pad: 8px;
+  --panel-pad: 12px;
+  --cell-pad: 6px 10px;
+}
+
+/* ---------- 动效 ---------- */
+:root {
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --dur-fast: 120ms;
+  --dur: 180ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur: 0ms;
+  }
+}
