@@ -17,6 +17,7 @@ const order = ref("desc");
 
 const showWizard = ref(false);
 const wizard = reactive({ path: "", recursive: true, estimate: null });
+const globalWatcher = ref(false);
 
 async function loadDirs() {
   dirs.value = (await api.get("/api/directories")).items || [];
@@ -59,18 +60,57 @@ async function estimate() {
 }
 
 async function register() {
+  const est = wizard.estimate;
   try {
-    const data = await api.post("/api/directories?confirm=1", {
-      path: wizard.path,
-      recursive: wizard.recursive,
-      estimate: wizard.estimate,
-    });
-    notify(`已登记（${data.estimate?.count ?? 0} 个文件），扫描已入队`);
+    let scan = null;
+    if (est?.registered_id) {
+      await api.post(`/api/scan/${est.registered_id}`, {});
+      notify("该目录已登记，已执行增量扫描");
+    } else {
+      const data = await api.post("/api/directories?confirm=1", {
+        path: wizard.path,
+        recursive: wizard.recursive,
+        estimate: est,
+      });
+      scan = data.scan || {};
+      notify(
+        `已登记并扫描完成：新增 ${scan.added ?? 0}、更新 ${scan.updated ?? 0}、跳过 ${scan.skipped ?? 0}`,
+      );
+    }
     showWizard.value = false;
     wizard.path = "";
     wizard.estimate = null;
     await loadDirs();
     await load();
+  } catch (e) {
+    if (e.status === 409) {
+      // 估算与确认之间被登记（重复点击等）：降级为增量扫描
+      await loadDirs();
+      const hit = dirs.value.find((d) => d.path === wizard.path);
+      if (hit) {
+        await api.post(`/api/scan/${hit.id}`, {});
+        notify("该目录已登记，已执行增量扫描");
+        showWizard.value = false;
+        wizard.path = "";
+        wizard.estimate = null;
+        await load();
+        return;
+      }
+    }
+    notify(e.message, "error");
+  }
+}
+
+async function toggleWatcher(d) {
+  try {
+    const next = !d.watcher;
+    await api.patch(`/api/directories/${d.id}`, { watcher: next });
+    d.watcher = next;
+    notify(
+      next
+        ? `已切换自动跟踪：${d.path}（30 秒轮询增量扫描${globalWatcher.value ? "" : "，需先在设置 G4 开启全局开关"}）`
+        : `已切换手动模式：${d.path}（只在点「增量扫描」时更新）`,
+    );
   } catch (e) {
     notify(e.message, "error");
   }
@@ -89,8 +129,12 @@ async function removeDir(d) {
 
 async function startScan(d) {
   try {
-    await api.post(`/api/scan/${d.id}`, {});
-    notify("扫描任务已入队（可在任务页查看）");
+    const res = await api.post(`/api/scan/${d.id}`, {});
+    notify(
+      `扫描完成：新增 ${res.added ?? 0}、更新 ${res.updated ?? 0}、跳过 ${res.skipped ?? 0}、丢失 ${res.missing ?? 0}`,
+    );
+    await loadDirs();
+    await load();
   } catch (e) {
     notify(e.message, "error");
   }
@@ -144,6 +188,12 @@ async function onUpload(ev) {
 const categories = computed(() => [...new Set(images.value.map((i) => i.category).filter(Boolean))]);
 
 onMounted(async () => {
+  try {
+    const cfg = await api.get("/api/settings");
+    globalWatcher.value = !!cfg?.values?.watcher_enabled;
+  } catch {
+    globalWatcher.value = false;
+  }
   await loadDirs();
   await load();
 });
@@ -171,7 +221,9 @@ onMounted(async () => {
         <input v-model="wizard.path" class="grow" placeholder="绝对路径，如 D:\Photos" />
         <label class="small"><input v-model="wizard.recursive" type="checkbox" /> 递归子目录</label>
         <button class="btn" :disabled="!wizard.path" @click="estimate">第一步：估算</button>
-        <button class="btn primary" :disabled="!wizard.estimate" @click="register">第二步：确认登记</button>
+        <button class="btn primary" :disabled="!wizard.estimate" @click="register">
+          {{ wizard.estimate?.registered_id ? "第二步：增量扫描" : "第二步：确认登记" }}
+        </button>
       </div>
       <div v-if="wizard.estimate" class="small muted" style="margin-top: 8px">
         发现 {{ wizard.estimate.count }} 个文件（{{ (wizard.estimate.bytes / 1048576).toFixed(1) }}
@@ -180,6 +232,10 @@ onMounted(async () => {
         <span :class="wizard.estimate.within_budget ? '' : 'tag red'">{{
           wizard.estimate.within_budget ? "在日预算内" : "超出日预算"
         }}</span>
+        <div v-if="wizard.estimate.registered_id" class="tag" style="display: inline-block">
+          该目录已登记，确认后执行增量扫描
+        </div>
+        <div v-if="wizard.estimate.overlap" class="tag red">{{ wizard.estimate.overlap }}</div>
         <div v-for="p in wizard.estimate.phases" :key="p">· {{ p }}</div>
       </div>
     </div>
@@ -199,6 +255,7 @@ onMounted(async () => {
           <option value="unanalyzed">未识别</option>
           <option value="done">已识别</option>
           <option value="failed">失败</option>
+          <option value="skipped">跳过（超大图/隐私）</option>
         </select>
         <select v-model="filters.rating_min" @change="load()">
           <option value="">任意评分</option>
@@ -229,10 +286,16 @@ onMounted(async () => {
     </div>
 
     <div v-if="dirs.length" class="panel">
-      <h3>已登记目录</h3>
+      <h3>
+        已登记目录
+        <span v-if="!globalWatcher" class="tag red" style="margin-left: 8px">
+          全局自动导入未开启（设置 → G4 目录策略）
+        </span>
+        <span v-else class="tag green" style="margin-left: 8px">全局自动导入已开启（30 秒轮询）</span>
+      </h3>
       <table>
         <thead>
-          <tr><th>路径</th><th>递归</th><th>状态</th><th>操作</th></tr>
+          <tr><th>路径</th><th>递归</th><th>状态</th><th>跟踪</th><th>操作</th></tr>
         </thead>
         <tbody>
           <tr v-for="d in dirs" :key="d.id">
@@ -240,6 +303,16 @@ onMounted(async () => {
             <td>{{ d.recursive ? "是" : "否" }}</td>
             <td>
               <span class="tag" :class="d.enabled ? 'green' : 'red'">{{ d.enabled ? "启用" : "停用" }}</span>
+            </td>
+            <td>
+              <button
+                class="btn small"
+                :class="d.watcher ? 'primary' : ''"
+                :title="d.watcher ? '自动：30 秒轮询增量扫描' : '手动：仅点击「增量扫描」时更新'"
+                @click="toggleWatcher(d)"
+              >
+                {{ d.watcher ? "自动" : "手动" }}
+              </button>
             </td>
             <td class="row">
               <button class="btn small" @click="startScan(d)">增量扫描</button>
