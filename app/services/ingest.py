@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from app.domain.errors import DirAlreadyRegistered, DirNotFoundError, ValidationAppError
 from app.files import scanner
-from app.files.media import MediaInfo, extract, is_under, make_thumbnail
+from app.files.media import MAX_PIXELS, MediaInfo, extract, is_under, make_thumbnail
 from app.files.scanner import ScanOptions
 from app.services import rules_svc
 
@@ -125,6 +125,17 @@ def estimate_directory(state: AppState, payload: dict[str, Any]) -> dict[str, An
     est_tokens = count * AVG_TOKENS_PER_IMAGE
     limit = int(state.settings.get("daily_token_limit", 0))
     used = state.images.tokens_today(state.deps.today())
+    registered: int | None = None
+    overlap: str | None = None
+    for existing in state.dirs.list():
+        if str(existing["path"]) == str(path):
+            registered = int(existing["id"])
+            break
+    if registered is None:
+        try:
+            _validate_no_overlap(state, path)
+        except DirAlreadyRegistered as exc:
+            overlap = str(exc)
     return {
         "path": str(path),
         "count": count,
@@ -135,6 +146,8 @@ def estimate_directory(state: AppState, payload: dict[str, Any]) -> dict[str, An
         "tokens_today": used,
         "tokens_left": (limit - used) if limit else None,
         "within_budget": (est_tokens <= (limit - used)) if limit else True,
+        "registered_id": registered,
+        "overlap": overlap,
         "phases": ["phase-1 扫描入库（不调用 AI）", "phase-2 识别（分批排队，可随时暂停）"],
     }
 
@@ -160,7 +173,11 @@ def ingest_file(
         except OSError:
             return int(existing["id"]), "unchanged"
         if abs(current_mtime - float(existing["mtime"])) > 0.001 or existing["missing"]:
-            info = extract(path)
+            try:
+                info = extract(path)
+            except (OSError, ValueError) as exc:
+                state.notice("scan-skip", f"无法读取，已跳过：{rel}（{exc}）", "warning")
+                return int(existing["id"]), "skipped"
             state.images.update(
                 int(existing["id"]),
                 mtime=info.mtime,
@@ -186,7 +203,7 @@ def ingest_file(
         target = moved[0]
         try:
             moved_info: MediaInfo | None = extract(path)
-        except OSError:
+        except (OSError, ValueError):
             moved_info = None
         state.images.update(
             int(target["id"]),
@@ -236,7 +253,14 @@ def ingest_file(
     except (OSError, ValueError) as exc:
         state.notice("thumb-skip", f"缩略图生成失败：{rel}（{exc}）", "warning")
     rules_svc.apply_phase(state, state.images.get(image_id) or {}, "pre")
-    if not dir_row.get("offline") and not dir_row.get("frozen"):
+    # dhash 为空 = 超出防解压炸弹上限、只读了文件头；再兜底一层显式像素数判断
+    oversized = (not info.dhash) or bool(
+        info.width and info.height and info.width * info.height > MAX_PIXELS
+    )
+    if oversized:
+        state.images.update_any(image_id, analysis_state="skipped")
+        state.notice("oversize", f"图片尺寸过大，已入库但跳过 AI 识图：{rel}", "warning")
+    elif not dir_row.get("offline") and not dir_row.get("frozen"):
         _queue_analyze(state, image_id, priority=10)
     return image_id, "added"
 
@@ -258,7 +282,17 @@ def scan_directory(state: AppState, dir_id: int) -> dict[str, Any]:
     seen: set[str] = set()
     added = updated = rebound = skipped = 0
     for file_path in scanner.iter_files(path, options):
-        _, action = ingest_file(state, dir_row, file_path, seen=seen)
+        try:
+            _, action = ingest_file(state, dir_row, file_path, seen=seen)
+        except Exception as exc:  # 单文件异常绝不阻塞整目录扫描
+            seen.add(str(file_path))
+            state.notice(
+                "scan-skip",
+                f"扫描出错，已跳过：{file_path.name}（{type(exc).__name__}: {exc}）",
+                "warning",
+            )
+            skipped += 1
+            continue
         if action == "added":
             added += 1
         elif action == "updated":

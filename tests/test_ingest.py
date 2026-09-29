@@ -109,3 +109,44 @@ def test_watch_and_unregister(client: TestClient, library: Path, fake_clock: Fak
 
 def test_state_is_app_state(client: TestClient) -> None:
     assert isinstance(get_state(client), AppState)
+
+
+def test_oversize_image_indexed_but_analyze_skipped(
+    client: TestClient, library: Path, fake_clock: FakeClock
+) -> None:
+    """超出防解压炸弹上限的图：不崩（不 500），仍入库读文件头，跳过 AI 识图。"""
+    from PIL import Image
+
+    old_limit = Image.MAX_IMAGE_PIXELS
+    Image.MAX_IMAGE_PIXELS = 1000  # 测试图 64×48=3072 像素，全部触发炸弹保护
+    try:
+        resp = client.post("/api/directories?confirm=1", json={"path": str(library)})
+    finally:
+        Image.MAX_IMAGE_PIXELS = old_limit
+
+    assert resp.status_code == 200
+    assert resp.json()["scan"]["added"] == 3  # 全部扫到，没有中途崩掉
+
+    items = client.get("/api/images").json()["items"]
+    assert len(items) == 3
+    for item in items:
+        assert item["analysis_state"] == "skipped"
+        assert item["width"] == 64 and item["height"] == 48  # 文件头解析出尺寸
+        assert item["dhash"] == ""  # 未整图解码 → 无感知哈希
+
+    state = get_state(client)
+    counts = state.jobs.counts()
+    assert not counts.get("pending") and not counts.get("running")  # 没有识图任务
+    drain(state, fake_clock)
+    assert len(state.deps.vision.vision_calls) == 0  # type: ignore[union-attr]
+
+
+def test_scan_survives_broken_file(client: TestClient, library: Path) -> None:
+    """损坏文件只跳过自己，整目录照常扫全。"""
+    (library / "broken.jpg").write_bytes(b"definitely not a real jpeg")
+    resp = client.post("/api/directories?confirm=1", json={"path": str(library)})
+    assert resp.status_code == 200
+    scan = resp.json()["scan"]
+    assert scan["added"] == 3
+    assert scan["skipped"] == 1
+    assert client.get("/api/images").json()["total"] == 3
