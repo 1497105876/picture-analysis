@@ -15,6 +15,7 @@ class ScanOptions:
     recursive: bool = True
     extensions: frozenset[str] = frozenset(IMAGE_EXTS)
     exclude_globs: tuple[str, ...] = ()
+    exclude_paths: frozenset[str] = frozenset()
 
 
 def iter_files(root: Path, options: ScanOptions) -> Iterator[Path]:
@@ -27,6 +28,8 @@ def iter_files(root: Path, options: ScanOptions) -> Iterator[Path]:
         candidates = (p for p in root.iterdir() if p.is_file())
     for path in candidates:
         if path.suffix.lower() not in options.extensions:
+            continue
+        if str(path) in options.exclude_paths:
             continue
         relative = str(path.relative_to(root)).replace("\\", "/")
         if any(fnmatch.fnmatch(relative, pattern) for pattern in options.exclude_globs):

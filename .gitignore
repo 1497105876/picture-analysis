@@ -49,3 +49,6 @@ frontend/.vite/
 *.swp
 .DS_Store
 Thumbs.db
+
+# 用户本地笔记，不入库
+docs/几个问题.txt

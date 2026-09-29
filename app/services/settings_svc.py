@@ -16,6 +16,11 @@ from app.storage.stats_repo import SettingsRepo
 if TYPE_CHECKING:
     from app.services.state import AppState
 
+# 四用途绑定键与跟随方向：@follow 指向上游用途，@vision/@chat/@enhance 是显式引用
+BINDING_KEYS = ("profile_vision", "profile_embed", "profile_chat", "profile_enhance")
+FOLLOW_OF: dict[str, str] = {"embed": "vision", "chat": "vision", "enhance": "chat"}
+EXPLICIT_FOLLOW: dict[str, str] = {"@vision": "vision", "@chat": "chat", "@enhance": "enhance"}
+
 
 class ProfileStore:
     """服务档案：base_url/type 进 settings，密钥只进 .env（界面可读回明文）。"""
@@ -143,7 +148,21 @@ class SettingsService:
 
     def schema_payload(self) -> dict[str, Any]:
         payload = schema.schema_payload()
-        payload["values"] = self.values()
+        values = self.values()
+        names = [str(p.get("name", "")) for p in (self._repo.get("profiles", []) or [])]
+        for group in payload["groups"]:
+            for item in group["items"]:
+                if item["key"] not in BINDING_KEYS:
+                    continue
+                fixed = ["default"]
+                if item["key"] != "profile_vision":
+                    fixed.append("@follow")
+                options = fixed + [name for name in names if name not in fixed]
+                current = str(values.get(item["key"], item["default"]))
+                if current not in options:
+                    options.insert(0, current)  # 让下拉始终能显示当前值
+                item["options"] = options
+        payload["values"] = values
         payload["danger_groups"] = ["G10"]
         return payload
 
@@ -203,30 +222,35 @@ class SettingsService:
         self._profiles.delete_key(name)
 
     def resolved_profile(self, usage: str) -> dict[str, Any] | None:
-        """四用途绑定（支持 @follow 跟随）。"""
-        key = f"profile_{usage}"
-        name = self.get_str(key, "default")
+        """四用途绑定：@follow 跟随上游用途，@vision/@chat/@enhance 为显式引用。
+
+        绑定缺失、指向不存在的档案或跟随成环时回退到 default 档案；
+        只有库里一个档案都没有才返回 None。
+        """
+        profiles = [dict(p) for p in (self._repo.get("profiles", []) or [])]
+        if not profiles:
+            return None
+        wanted = "default"
+        current = usage
         seen: set[str] = set()
-        while name.startswith("@"):
-            if name in seen:
-                return None
-            seen.add(name)
-            follow = {"@vision": "vision", "@chat": "chat", "@enhance": "enhance"}.get(name)
-            if follow is None:
-                return None
-            name = self.get_str(f"profile_{follow}", "default")
-        profiles = self._repo.get("profiles", []) or []
-        for profile in profiles:
-            if profile.get("name") == name:
-                result = dict(profile)
-                result["api_key"] = self._profiles.get_key(name)
-                return result
-        for profile in profiles:
-            if profile.get("name") == "default":
-                result = dict(profile)
-                result["api_key"] = self._profiles.get_key("default")
-                return result
-        return profiles[0] if profiles else None
+        while current not in seen:
+            seen.add(current)
+            name = self.get_str(f"profile_{current}", "default")
+            if not name.startswith("@"):
+                wanted = name
+                break
+            upstream = FOLLOW_OF.get(current) if name == "@follow" else EXPLICIT_FOLLOW.get(name)
+            if upstream is None:
+                break  # 识图没有跟随对象，或 @引用 未知 → 回退 default
+            current = upstream
+        matched = (
+            next((p for p in profiles if p.get("name") == wanted), None)
+            or next((p for p in profiles if p.get("name") == "default"), None)
+            or profiles[0]
+        )
+        result = dict(matched)
+        result["api_key"] = self._profiles.get_key(str(result.get("name", "")))
+        return result
 
     def model_for(self, usage: str) -> str:
         return self.get_str(f"{usage}_model", "")
@@ -272,9 +296,6 @@ class SettingsService:
     def profiles_payload(self) -> dict[str, Any]:
         return {
             "profiles": self.list_profiles(),
-            "bindings": {
-                k: self.get(k)
-                for k in ("profile_vision", "profile_embed", "profile_chat", "profile_enhance")
-            },
+            "bindings": {k: self.get(k) for k in BINDING_KEYS},
             "models": {k: self.get(k) for k in ("vision_model", "embed_model", "chat_model")},
         }

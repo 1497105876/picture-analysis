@@ -146,6 +146,22 @@ class ImagesRepo:
             (now_iso(), image_id),
         )
 
+    # ---------- 删除索引排除（增量扫描墓碑） ----------
+
+    def exclude_path(self, dir_id: int, path: str) -> None:
+        """只删索引时登记：该路径后续增量扫描一律跳过，不再重新入库。"""
+        self._db.execute(
+            "INSERT OR REPLACE INTO excluded_images(dir_id, path, deleted_at) VALUES(?,?,?)",
+            (dir_id, path, now_iso()),
+        )
+
+    def excluded_paths(self, dir_id: int) -> frozenset[str]:
+        rows = self._db.query("SELECT path FROM excluded_images WHERE dir_id=?", (dir_id,))
+        return frozenset(str(row["path"]) for row in rows)
+
+    def clear_exclusions(self, dir_id: int) -> None:
+        self._db.execute("DELETE FROM excluded_images WHERE dir_id=?", (dir_id,))
+
     # ---------- FTS 同步 ----------
 
     def fts_replace(

@@ -39,6 +39,7 @@ class SettingItem:
     options: tuple[str, ...] = ()
     effective: str = "on-save"
     advanced: bool = False
+    free: bool = False  # select 允许写入 options 之外的值（如用户自建的档案名）
     show_if: dict[str, Any] = field(default_factory=dict)
 
 
@@ -54,9 +55,21 @@ def _s(
     options: tuple[str, ...] = (),
     effective: str = "on-save",
     advanced: bool = False,
+    free: bool = False,
 ) -> SettingItem:
     return SettingItem(
-        group, key, label, stype, default, help, minimum, maximum, options, effective, advanced
+        group,
+        key,
+        label,
+        stype,
+        default,
+        help,
+        minimum,
+        maximum,
+        options,
+        effective,
+        advanced,
+        free,
     )
 
 
@@ -68,9 +81,10 @@ SETTINGS: tuple[SettingItem, ...] = (
         "识图用途档案",
         "select",
         "default",
-        "空或不存在时回退到 default 档案",
+        "识图没有可跟随的上游；空或不存在时回退到 default 档案",
         options=("@follow",),
         effective="immediate",
+        free=True,
     ),
     _s(
         "G1",
@@ -81,6 +95,7 @@ SETTINGS: tuple[SettingItem, ...] = (
         "跟随识图档案",
         options=("@follow",),
         effective="immediate",
+        free=True,
     ),
     _s(
         "G1",
@@ -91,6 +106,7 @@ SETTINGS: tuple[SettingItem, ...] = (
         "跟随识图档案",
         options=("@follow",),
         effective="immediate",
+        free=True,
     ),
     _s(
         "G1",
@@ -101,6 +117,7 @@ SETTINGS: tuple[SettingItem, ...] = (
         "跟随对话档案",
         options=("@follow",),
         effective="immediate",
+        free=True,
     ),
     _s("G1", "probe_on_start", "启动时连接探测", "bool", True, effective="immediate"),
     _s("G1", "probe_interval_min", "周期探测间隔（分钟）", "int", 30, minimum=1, maximum=1440),
@@ -313,6 +330,8 @@ def coerce(key: str, value: Any) -> Any:
             return bool(value)
         if item.type == "select":
             text = str(value)
+            if item.free:
+                return text if text else item.default
             if item.options and text not in item.options and not text.startswith("@"):
                 return item.default
             return text

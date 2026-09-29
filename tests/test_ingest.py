@@ -98,6 +98,39 @@ def test_incremental_scan_marks_missing_and_rebinds(
     assert detail["notes"] == "我的批注"
 
 
+def test_deleted_index_not_rescanned(
+    client: TestClient, library: Path, fake_clock: FakeClock
+) -> None:
+    """只删索引 = 明确不想要这张图：后续增量扫描不得把它扫回来。"""
+    client.post("/api/directories?confirm=1", json={"path": str(library)})
+    state = get_state(client)
+    drain(state, fake_clock)
+    calls = len(state.deps.vision.vision_calls)  # type: ignore[union-attr]
+    target = client.get("/api/images").json()["items"][0]
+
+    assert client.request("DELETE", f"/api/images/{target['id']}").status_code == 200
+    assert client.get("/api/images").json()["total"] == 2
+    assert Path(target["path"]).is_file()  # 只删索引，源文件原地不动
+
+    # 导入向导预估同步跳过，张数与实际入库一致
+    est = client.post("/api/directories", json={"path": str(library)}).json()["estimate"]
+    assert est["count"] == 2
+
+    # 增量扫描：不新增、不重新排队识图，并报出被排除的张数
+    scan = client.post("/api/scan/1").json()
+    assert scan["added"] == 0
+    assert scan["excluded"] == 1
+    assert client.get("/api/images").json()["total"] == 2
+    drain(state, fake_clock)
+    assert len(state.deps.vision.vision_calls) == calls  # type: ignore[union-attr]
+
+    # 注销目录 = 全量重来：排除一并清除，重新登记后回到 3 张
+    removed = client.request("DELETE", "/api/directories/1").json()
+    assert removed["removed_index"] == 2
+    client.post("/api/directories?confirm=1", json={"path": str(library)})
+    assert client.get("/api/images").json()["total"] == 3
+
+
 def test_watch_and_unregister(client: TestClient, library: Path, fake_clock: FakeClock) -> None:
     client.post("/api/directories?confirm=1", json={"path": str(library)})
     removed = client.request("DELETE", "/api/directories/1").json()

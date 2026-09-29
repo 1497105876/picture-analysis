@@ -30,6 +30,7 @@ def _options(state: AppState, dir_row: dict[str, Any]) -> ScanOptions:
         recursive=bool(dir_row["recursive"]),
         extensions=frozenset(exts) if exts else DEFAULT_EXTS,
         exclude_globs=tuple(excludes),
+        exclude_paths=state.images.excluded_paths(int(dir_row["id"])),
     )
 
 
@@ -80,6 +81,7 @@ def register_directory(state: AppState, payload: dict[str, Any]) -> dict[str, An
 def unregister_directory(state: AppState, dir_id: int) -> dict[str, Any]:
     dir_row = get_directory(state, dir_id)
     removed = state.images.delete_by_dir(dir_id)
+    state.images.clear_exclusions(dir_id)
     state.dirs.remove(dir_id)
     return {"dir_id": dir_id, "path": dir_row["path"], "removed_index": removed}
 
@@ -110,6 +112,11 @@ def estimate_directory(state: AppState, payload: dict[str, Any]) -> dict[str, An
     path = normalize_path(raw)
     if not path.exists() or not path.is_dir():
         raise DirNotFoundError(f"目录不存在或不可访问：{path}")
+    registered: int | None = None
+    for existing in state.dirs.list():
+        if str(existing["path"]) == str(path):
+            registered = int(existing["id"])
+            break
     options = ScanOptions(
         recursive=bool(payload.get("recursive", True)),
         extensions=frozenset(
@@ -117,6 +124,10 @@ def estimate_directory(state: AppState, payload: dict[str, Any]) -> dict[str, An
         )
         or DEFAULT_EXTS,
         exclude_globs=tuple(str(g) for g in state.settings.get_list("exclude_globs")),
+        # 已删索引的图不计入预估，避免向导张数与实际入库数对不上
+        exclude_paths=(
+            state.images.excluded_paths(registered) if registered is not None else frozenset()
+        ),
     )
     stats = scanner.estimate(path, options)
     count = int(stats["count"])
@@ -125,12 +136,7 @@ def estimate_directory(state: AppState, payload: dict[str, Any]) -> dict[str, An
     est_tokens = count * AVG_TOKENS_PER_IMAGE
     limit = int(state.settings.get("daily_token_limit", 0))
     used = state.images.tokens_today(state.deps.today())
-    registered: int | None = None
     overlap: str | None = None
-    for existing in state.dirs.list():
-        if str(existing["path"]) == str(path):
-            registered = int(existing["id"])
-            break
     if registered is None:
         try:
             _validate_no_overlap(state, path)
@@ -276,7 +282,7 @@ def scan_directory(state: AppState, dir_id: int) -> dict[str, Any]:
         state.notice("offline", f"目录不可达，已标记离线：{path}", "warning")
         raise DirNotFoundError(f"目录不可达：{path}")
     if dir_row["frozen"]:
-        return {"dir_id": dir_id, "skipped": "frozen", "added": 0, "updated": 0}
+        return {"dir_id": dir_id, "skipped": "frozen", "added": 0, "updated": 0, "excluded": 0}
 
     options = _options(state, dir_row)
     seen: set[str] = set()
@@ -311,6 +317,7 @@ def scan_directory(state: AppState, dir_id: int) -> dict[str, Any]:
         "missing": missing,
         "skipped": skipped,
         "scanned": len(seen),
+        "excluded": len(options.exclude_paths),
     }
 
 

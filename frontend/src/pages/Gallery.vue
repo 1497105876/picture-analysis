@@ -130,8 +130,10 @@ async function removeDir(d) {
 async function startScan(d) {
   try {
     const res = await api.post(`/api/scan/${d.id}`, {});
+    const excluded = res.excluded ?? 0;
     notify(
-      `扫描完成：新增 ${res.added ?? 0}、更新 ${res.updated ?? 0}、跳过 ${res.skipped ?? 0}、丢失 ${res.missing ?? 0}`,
+      `扫描完成：新增 ${res.added ?? 0}、更新 ${res.updated ?? 0}、跳过 ${res.skipped ?? 0}、丢失 ${res.missing ?? 0}` +
+        (excluded > 0 ? `、已排除「仅移除索引」${excluded} 张` : ""),
     );
     await loadDirs();
     await load();

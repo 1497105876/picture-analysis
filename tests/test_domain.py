@@ -240,6 +240,22 @@ def test_scanner_excludes_and_estimate(tmp_path: Path) -> None:
     assert len(list(iter_files(tmp_path, flat))) == 2
 
 
+def test_scanner_excludes_deleted_index_paths(tmp_path: Path) -> None:
+    """exclude_paths：删除索引登记的路径在扫描与预估中都被跳过。"""
+    keep = tmp_path / "keep.jpg"
+    keep.write_bytes(b"a")
+    dropped = tmp_path / "dropped.jpg"
+    dropped.write_bytes(b"b")
+
+    options = ScanOptions(
+        extensions=frozenset({".jpg"}),
+        exclude_globs=(),
+        exclude_paths=frozenset({str(dropped)}),
+    )
+    assert [p.name for p in iter_files(tmp_path, options)] == ["keep.jpg"]
+    assert estimate(tmp_path, options) == {"count": 1, "bytes": 1}
+
+
 def test_scanner_non_recursive(tmp_path: Path) -> None:
     (tmp_path / "top.jpg").write_bytes(b"a")
     sub = tmp_path / "sub"

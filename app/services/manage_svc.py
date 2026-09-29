@@ -146,7 +146,8 @@ def unhide(state: AppState, ids: list[int]) -> dict[str, Any]:
 def delete(
     state: AppState, image_id: int, mode: str = "index", confirm: str = ""
 ) -> dict[str, Any]:
-    """删除：mode=index 只删索引；mode=source 源文件进回收站（可找回）。"""
+    """删除：mode=index 只删索引（登记排除，增量扫描不再收录）；
+    mode=source 源文件进回收站（可找回，恢复后照常重新入库）。"""
     image = _image_or_404(state, image_id)
     if mode not in ("index", "source"):
         raise ValidationAppError("mode 只能是 index 或 source")
@@ -165,6 +166,8 @@ def delete(
                 (image_id, str(source), str(trash_path), time.strftime("%Y-%m-%dT%H:%M:%SZ")),
             )
     state.images.delete(image_id)
+    if mode == "index":
+        state.images.exclude_path(int(image["dir_id"]), str(image["path"]))
     return {"image_id": image_id, "mode": mode}
 
 

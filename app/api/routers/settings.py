@@ -38,7 +38,7 @@ def test_connection(request: Request, payload: dict[str, Any] = Body(default={})
     if not base_url:
         profile = state.settings.resolved_profile(str(payload.get("usage", "vision")))
         if profile is None:
-            raise NotFoundError("没有可用的服务档案")
+            raise NotFoundError("没有可用的服务档案：请先在设置页「服务档案」里新建一个")
         base_url = str(profile.get("base_url", ""))
         api_key = str(profile.get("api_key", "") or "")
     if not base_url.startswith(("http://", "https://")):

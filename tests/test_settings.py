@@ -6,6 +6,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from app.domain import settings_schema as schema
 from app.services.state import AppState
 from tests.conftest import FakeClock, get_state
 
@@ -139,3 +140,64 @@ def test_values_merged_in_get(client: TestClient) -> None:
     payload = client.get("/api/settings").json()
     assert payload["values"]["thumb_size"] == 300
     assert isinstance(get_state(client), AppState)
+
+
+def _save_ag(client: TestClient) -> None:
+    client.post(
+        "/api/settings/profiles",
+        json={
+            "name": "ag",
+            "base_url": "http://127.0.0.1:9/v1",
+            "type": "openai",
+            "api_key": "sk-x",
+        },
+    )
+
+
+def test_binding_options_carry_profile_names(client: TestClient) -> None:
+    _save_ag(client)
+    options = {
+        item["key"]: item["options"]
+        for group in client.get("/api/settings").json()["groups"]
+        for item in group["items"]
+    }
+    # 档案名要出现在下拉里，否则用户只能选到 @follow
+    assert options["profile_vision"] == ["default", "ag"]
+    assert options["profile_embed"] == ["default", "@follow", "ag"]
+    assert options["profile_chat"] == ["default", "@follow", "ag"]
+    assert options["profile_enhance"] == ["default", "@follow", "ag"]
+
+    # 档案名不在静态 options 里，但 select 是 free 的，必须原样存住
+    client.put(
+        "/api/settings",
+        json={"values": {"profile_vision": "ag", "profile_embed": "@follow"}},
+    )
+    state = get_state(client)
+    assert state.settings.get_str("profile_vision") == "ag"
+    assert state.settings.get_str("profile_embed") == "@follow"
+    assert schema.coerce("profile_vision", "ag") == "ag"
+    assert schema.coerce("profile_vision", "") == "default"
+
+
+def test_follow_chain_resolves_to_only_profile(client: TestClient) -> None:
+    """四用途全部绑 @follow（默认值）时也要能解析，否则探测直接 404。"""
+    _save_ag(client)
+    client.put(
+        "/api/settings",
+        json={
+            "values": {
+                "profile_vision": "@follow",
+                "profile_embed": "@follow",
+                "profile_chat": "@follow",
+                "profile_enhance": "@follow",
+            }
+        },
+    )
+    state = get_state(client)
+    for usage in ("vision", "embed", "chat", "enhance"):
+        profile = state.settings.resolved_profile(usage)
+        assert profile is not None
+        assert profile["name"] == "ag"
+        assert profile["api_key"] == "sk-x"
+
+    assert client.post("/api/settings/test", json={}).status_code == 200
