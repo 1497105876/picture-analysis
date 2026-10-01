@@ -11,6 +11,7 @@ from app.files import scanner
 from app.files.media import MAX_PIXELS, MediaInfo, extract, is_under, make_thumbnail
 from app.files.scanner import ScanOptions
 from app.services import rules_svc
+from app.storage.db import now_iso
 
 if TYPE_CHECKING:
     from app.services.state import AppState
@@ -308,7 +309,8 @@ def scan_directory(state: AppState, dir_id: int) -> dict[str, Any]:
         elif action == "skipped":
             skipped += 1
     missing = state.images.mark_missing(dir_id, seen)
-    state.dirs.update(dir_id, last_scanned_at=time.strftime("%Y-%m-%dT%H:%M:%S+00:00"))
+    # 时间戳统一走 UTC（与 now_iso 同口径）；本地时间冒充 +00:00 会让前端算错时区
+    state.dirs.update(dir_id, last_scanned_at=now_iso())
     return {
         "dir_id": dir_id,
         "added": added,

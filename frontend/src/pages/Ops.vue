@@ -117,7 +117,7 @@ const sys = ref(null);
 const cleanup = ref(null);
 
 onMounted(async () => {
-  await Promise.all([loadLogs(), loadNotices(200)]);
+  await Promise.all([loadLogs(), loadNotices()]);
   try {
     sys.value = await api.systemStats();
     cleanup.value = await api.cleanup();

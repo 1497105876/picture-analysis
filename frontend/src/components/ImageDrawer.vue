@@ -38,6 +38,7 @@ const form = reactive({
   custom: {},
 });
 const saving = ref(false);
+const savedTick = ref(false);
 const busy = ref(false);
 
 // ---- 删除 / 改名 / 移动 / 打回 的对话框状态 ----
@@ -106,6 +107,9 @@ async function save() {
     };
     detail.value = await api.patchImage(props.imageId, payload);
     notify("已保存：人工字段优先，AI 不会覆盖", "ok");
+    // toast 会消失，按钮上再留一个确认，免得用户不确定到底存没存
+    savedTick.value = true;
+    setTimeout(() => (savedTick.value = false), 1800);
     emit("changed");
   } catch (e) {
     notify(e.message, "error");
@@ -177,8 +181,12 @@ function deleteMessage() {
 }
 function deleteDetails() {
   return dlg.mode === "index"
-    ? ["源文件不会被改动", "可重新登记该目录把它找回来"]
-    : ["文件进入 data/trash，可恢复", `需要输入文件名「${detail.value.filename}」确认`];
+    ? ["源文件不会被改动", "删除后该路径登记为「仅移除索引」，增量扫描不再收录", "想找回就重新登记这个目录"]
+    : [
+        "文件进入 data/trash，可在回收站页恢复到原路径",
+        `为避免误删，需要你手输一遍文件名「${detail.value.filename}」——这是服务端的硬性要求，不是界面多事`,
+        "恢复只能回到原路径，不会移动到别的地方",
+      ];
 }
 const deleteConfirmWord = computed(() => (dlg.mode === "source" ? detail.value?.filename || "" : ""));
 
@@ -386,9 +394,10 @@ const moveTargets = computed(() => props.dirs.filter((d) => d.id !== detail.valu
               </div>
 
               <div class="row">
-                <button class="btn btn-primary" :disabled="saving" @click="save">
+                <button class="btn" :class="savedTick ? '' : 'btn-primary'" :disabled="saving" @click="save">
                   <span v-if="saving" class="spin"></span>
-                  保存修正
+                  <Icon v-else-if="savedTick" name="check" :size="14" />
+                  {{ savedTick ? "已保存" : "保存修正" }}
                 </button>
                 <button class="btn" :disabled="busy" @click="askRedo">打回重识别</button>
                 <button class="btn" :disabled="busy" @click="toggleFavorite">

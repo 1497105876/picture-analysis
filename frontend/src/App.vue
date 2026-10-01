@@ -5,7 +5,16 @@ import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
 import { api, safe } from "./app/api.js";
-import { backend, clearNotices, loadNotices, notices, unreadCount, markAllSeen, checkHealth } from "./app/notices.js";
+import {
+  backend,
+  clearNotices,
+  loadNotices,
+  notices,
+  unreadCount,
+  markAllSeen,
+  checkHealth,
+  refreshQueue,
+} from "./app/notices.js";
 import {
   ACCENTS,
   MODULE_GROUPS,
@@ -65,6 +74,7 @@ async function refreshBadges() {
     ]);
     if (jobs?.counts) counts.value.jobs = (jobs.counts.pending || 0) + (jobs.counts.paused || 0);
     if (props?.items) counts.value.proposals = props.items.length;
+    await refreshQueue();
   } finally {
     inFlight.value = false;
   }
@@ -74,7 +84,7 @@ let timer = null;
 function startPolling() {
   const tick = async () => {
     if (document.hidden) return;
-    await Promise.all([checkHealth(), loadNotices(30), refreshBadges()]);
+    await Promise.all([checkHealth(), loadNotices(), refreshBadges()]);
   };
   tick();
   timer = setInterval(tick, 12000);
@@ -86,7 +96,7 @@ async function boot() {
   } catch {
     notify("读不到后端设置：先把服务跑起来再刷新", "error");
   }
-  await Promise.all([checkHealth(), loadNotices(30), loadCatalog(), refreshBadges()]);
+  await Promise.all([checkHealth(), loadNotices(), loadCatalog(), refreshBadges()]);
   booted.value = true;
   startPolling();
 }
@@ -101,7 +111,7 @@ function togglePop(which) {
     return;
   }
   showPop.value = which;
-  if (which === "notices") loadNotices(30);
+  if (which === "notices") loadNotices();
   if (which === "") return;
   setTimeout(() => {
     const close = (e) => {
@@ -160,7 +170,7 @@ async function pickDensity(density) {
 async function retryHealth() {
   busyingHealth.value = true;
   await checkHealth();
-  await loadNotices(30);
+  await loadNotices();
   busyingHealth.value = false;
   notify(backend.online ? "已连上后端" : "仍然连不上，检查服务是否在运行", backend.online ? "ok" : "error");
 }
@@ -206,7 +216,7 @@ const currentDensity = computed(() => String(settings.values.card_density || "co
             <Icon :name="m.icon" :size="15" />
             <span class="clamp-1">{{ m.label }}</span>
             <span v-if="badgeFor(m.key)" class="count">{{ badgeFor(m.key) }}</span>
-            <span v-else-if="m.fresh" class="count count-dim">新</span>
+            <span v-else-if="m.fresh" class="count count-dim" title="这一版新增的模块，可在设置 → 侧栏模块里调整位置">新</span>
           </router-link>
         </template>
       </nav>

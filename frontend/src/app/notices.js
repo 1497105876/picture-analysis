@@ -22,6 +22,14 @@ export const backend = reactive({
   checked: false,
 });
 
+// 队列状态：有没有 AI 可用、是不是暂停了、为什么暂停。
+// 图库页靠它判断「要不要告诉用户：你的图不会自动识别」。
+export const queue = reactive({
+  paused: 0,
+  reason: "",
+  pending: 0,
+});
+
 export const unreadCount = computed(() =>
   notices.items.reduce((acc, n) => acc + (Number(n.id) > notices.seen ? 1 : 0), 0),
 );
@@ -34,9 +42,13 @@ export function markAllSeen() {
   }
 }
 
-export async function loadNotices(limit = 30) {
-  const items = await safe(() => api.notices(limit), []);
-  notices.items = items || [];
+/**
+ * 拉取通知。两处（顶栏下拉 / 运维页）共用同一个 limit，
+ * 否则顶栏显示 30、运维页显示 200，同一个数字两个值会让人不知道信哪个。
+ */
+export async function loadNotices(limit = 200) {
+  const data = await safe(() => api.notices(limit), null);
+  notices.items = Array.isArray(data?.items) ? data.items : [];
   notices.loaded = true;
   return notices.items;
 }
@@ -55,4 +67,16 @@ export async function checkHealth() {
   backend.version = data?.version || "";
   backend.checked = true;
   return backend.online;
+}
+
+/** 刷新队列状态（由 App 的轮询统一调用，页面不再各拉各的） */
+export async function refreshQueue() {
+  const data = await safe(() => api.jobs(), null, { silent: true });
+  if (!data) return queue;
+  const counts = data.counts || {};
+  const pausedRow = (data.items || []).find((j) => j.state === "paused");
+  queue.paused = counts.paused || 0;
+  queue.pending = (counts.pending || 0) + (counts.running || 0);
+  queue.reason = pausedRow?.error || pausedRow?.pause || "";
+  return queue;
 }

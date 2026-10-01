@@ -22,11 +22,21 @@ export function megabytes(n) {
   return `${(Number(n) / 1048576).toFixed(1)} MB`;
 }
 
-/** ISO 字符串 → 「2026-09-29 08:12」 */
+const pad = (n) => String(n).padStart(2, "0");
+
+/**
+ * 时间显示。后端存的是 UTC（如 2026-09-30T15:07:19+00:00），
+ * 直接截字符串会显示成比真实时间早 8 小时，所以带时区的要先转本地。
+ * 不带时区的字符串（少数历史数据）按本地时间原样显示，不再二次偏移。
+ */
 export function datetime(s) {
   if (!s) return EMPTY;
-  const text = String(s).replace("T", " ").replace("Z", "");
-  return text.length > 16 ? text.slice(0, 16) : text;
+  const text = String(s).trim();
+  const d = new Date(text);
+  if (Number.isNaN(d.getTime())) return text.slice(0, 16).replace("T", " ");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(
+    d.getHours(),
+  )}:${pad(d.getMinutes())}`;
 }
 
 export function date(s) {
@@ -41,12 +51,13 @@ export function datetimeAny(s) {
     const ms = Number(s) > 1e11 ? Number(s) : Number(s) * 1000;
     return datetime(new Date(ms).toISOString());
   }
-  return datetime(s);
+  // 纯数字以外的无时区串（如 "2026-09-30 15:07:19"）按本地时间理解
+  return datetime(String(s).includes("T") || /[Z+]/.test(String(s)) ? s : String(s).replace(" ", "T"));
 }
 
 export function ago(s) {
   if (!s) return EMPTY;
-  const ms = Date.now() - new Date(String(s).replace("Z", "Z")).getTime();
+  const ms = Date.now() - new Date(String(s).trim()).getTime();
   if (!Number.isFinite(ms)) return EMPTY;
   const min = Math.round(ms / 60000);
   if (min < 1) return "刚刚";
@@ -112,6 +123,19 @@ export const NOTICE_KIND = {
   budget: "预算",
   setting: "配置",
   system: "系统",
+  // 任务相关（这些是后端实际写入的值，不翻译就会在界面上露出英文）
+  no_key: "缺少密钥",
+  paused: "队列暂停",
+  "job-paused": "任务暂停",
+  "job-dead": "任务耗尽重试",
+  "job-failed": "任务失败",
+  rate: "限速等待",
+  skip: "跳过",
+  import: "导入",
+  trash: "回收站",
+  embed: "嵌入向量",
+  analyze: "AI 识别",
+  directory: "目录",
 };
 
 export function noticeKind(kind) {

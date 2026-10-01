@@ -1163,6 +1163,9 @@
   min-width: 0;
   padding: var(--sp-4) var(--sp-5) var(--sp-8);
   max-width: var(--content-max);
+  /* 必须显式写宽度：父级是 flex column，交叉轴上的 margin auto 会让元素
+     收缩成内容宽度（仪表盘/分类页这类内容窄的页面会被压成一小条居中） */
+  width: 100%;
   margin: 0 auto;
 }
 @media (max-width: 900px) {

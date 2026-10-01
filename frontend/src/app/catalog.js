@@ -12,11 +12,12 @@ export const catalog = reactive({
 export async function loadCatalog({ force = false } = {}) {
   if (catalog.loaded && !force) return catalog;
   const [cats, fields] = await Promise.all([
-    safe(() => api.categories(), []),
-    safe(() => api.customFields(), []),
+    safe(() => api.categories(), null),
+    safe(() => api.customFields(), null),
   ]);
-  catalog.categories = cats || [];
-  catalog.customFields = fields || [];
+  // 接口返回的是 { items: [...] }，取错层级会让分类下拉全空、甚至把键名当选项渲染出来
+  catalog.categories = Array.isArray(cats?.items) ? cats.items : [];
+  catalog.customFields = Array.isArray(fields?.items) ? fields.items : [];
   catalog.loaded = true;
   return catalog;
 }

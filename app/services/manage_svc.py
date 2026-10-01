@@ -18,6 +18,7 @@ from app.domain.errors import (
 from app.files.media import strip_exif
 from app.files.trash import move_to_trash
 from app.services import ingest
+from app.storage.db import now_iso
 
 if TYPE_CHECKING:
     from app.services.state import AppState
@@ -163,7 +164,7 @@ def delete(
             state.db.execute(
                 "INSERT INTO trash(image_id, original_path, trash_path, deleted_at) "
                 "VALUES(?,?,?,?)",
-                (image_id, str(source), str(trash_path), time.strftime("%Y-%m-%dT%H:%M:%SZ")),
+                (image_id, str(source), str(trash_path), now_iso()),
             )
     state.images.delete(image_id)
     if mode == "index":

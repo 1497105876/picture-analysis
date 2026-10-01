@@ -1,13 +1,14 @@
 <script setup>
 // 图库：登记目录、浏览、筛选、多选批量、导出、上传。
-import { computed, onMounted, reactive, ref } from "vue";
-import { useRoute } from "vue-router";
+import { computed, onMounted, reactive, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 
 import { api, http } from "../app/api.js";
 import { catalog, loadCatalog } from "../app/catalog.js";
 import { notify } from "../app/toast.js";
 import { useList } from "../app/useList.js";
-import { privacyMode, defaultSort, defaultView } from "../app/settings.js";
+import { privacyMode, defaultSort, defaultView, settings } from "../app/settings.js";
+import { queue } from "../app/notices.js";
 import { bytes, num, SORT_OPTIONS, datetime } from "../app/format.js";
 import ConfirmDialog from "../components/ConfirmDialog.vue";
 import EmptyState from "../components/EmptyState.vue";
@@ -18,6 +19,7 @@ import Panel from "../components/Panel.vue";
 
 // ---------------------------------------------------------------- 列表
 const route = useRoute();
+const router = useRouter();
 const filters = reactive({
   dir_id: "",
   category: "",
@@ -70,6 +72,16 @@ onMounted(async () => {
   if (q.category) filters.category = String(q.category);
   await Promise.all([loadCatalog(), loadDirs()]);
   await reload();
+  // 深链：/gallery?image=123 直接打开这张图的详情，刷新不丢
+  if (q.image && ids.value.includes(Number(q.image))) openId.value = Number(q.image);
+});
+
+// 抽屉开合同步进 URL：刷新能留住，也能把某张图发给以后的自己
+watch(openId, (v) => {
+  const query = { ...route.query };
+  if (v) query.image = String(v);
+  else delete query.image;
+  router.replace({ path: "/gallery", query });
 });
 
 // ---------------------------------------------------------------- 批量
@@ -277,6 +289,33 @@ function clearFilters() {
 }
 
 const totalBytes = computed(() => list.items.value.reduce((a, b) => a + (Number(b.bytes) || 0), 0));
+
+// 「照片进来了却一直不识别」时给一句话解释。
+// 新手不会想到去任务页看，这里不说，他只会以为功能坏了。
+const aiHint = computed(() => {
+  if (!settings.loaded || !list.items.value.length) return null;
+  const waiting = list.items.value.filter((i) => i.analysis_state !== "done").length;
+  if (!waiting) return null;
+  if (!(settings.profiles || []).length) {
+    return {
+      tone: "warn",
+      title: `${waiting} 张已入库，但还没配置 AI 服务，识别不会开始`,
+      detail: "识别、向量检索、以图搜图都需要先配一个服务档案（云端或本地 Ollama 都行）。",
+      actionLabel: "去配置档案",
+      to: "/settings",
+    };
+  }
+  if (queue.paused) {
+    return {
+      tone: "info",
+      title: `识别队列已暂停：${queue.reason || "等待恢复"}`,
+      detail: "暂停期间不会消耗任何 API 调用，恢复后自动继续排队。",
+      actionLabel: "看任务队列",
+      to: "/jobs",
+    };
+  }
+  return null;
+});
 </script>
 
 <template>
@@ -298,6 +337,18 @@ const totalBytes = computed(() => list.items.value.reduce((a, b) => a + (Number(
           <input type="file" accept="image/*" multiple hidden @change="onPick" />
         </label>
       </div>
+    </div>
+
+    <!-- 照片进来了却不识别时，必须有一句话解释原因 -->
+    <div v-if="aiHint" class="banner" :class="aiHint.tone === 'warn' ? 'banner-warn' : ''">
+      <Icon :name="aiHint.tone === 'warn' ? 'warning' : 'info'" :size="16" style="margin-top: 2px" />
+      <div class="stack" style="gap: 3px; min-width: 0">
+        <div class="strong">{{ aiHint.title }}</div>
+        <div class="small">{{ aiHint.detail }}</div>
+      </div>
+      <router-link class="btn btn-sm" style="margin-left: auto" :to="aiHint.to">
+        {{ aiHint.actionLabel }}
+      </router-link>
     </div>
 
     <!-- 已登记目录 -->
@@ -539,7 +590,10 @@ const totalBytes = computed(() => list.items.value.reduce((a, b) => a + (Number(
             <label class="field">
               <span class="lab">目录绝对路径</span>
               <input v-model="wizard.path" class="input mono" placeholder="如 D:\Photos 或 Z:\good\shishi" />
-              <span class="hint">必须已存在于本机，且在有权限访问的位置。</span>
+              <span class="hint">
+                网页拿不到文件夹选择器（浏览器的安全限制），请在资源管理器地址栏复制路径后粘贴到这里，
+                例如 <code>D:\Photos</code>；也可以直接把文件夹拖到图库页面上传。
+              </span>
             </label>
             <label class="lab-check">
               <input v-model="wizard.recursive" class="checkbox" type="checkbox" /> 递归子目录

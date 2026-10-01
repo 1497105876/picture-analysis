@@ -3,7 +3,7 @@
 import { computed, ref, watch } from "vue";
 
 import { thumbUrl } from "../app/api.js";
-import { categoryOf, descriptionOf, stateMeta, megabytes } from "../app/format.js";
+import { categoryOf, descriptionOf, stateMeta, bytes } from "../app/format.js";
 import Icon from "./Icon.vue";
 import StarRating from "./StarRating.vue";
 
@@ -82,7 +82,7 @@ const href = computed(() => thumbUrl(props.image.id));
         <span v-if="image.missing" class="tag tag-danger">文件丢失</span>
       </div>
       <div class="tiny dim mono">
-        {{ image.width && image.height ? `${image.width}×${image.height} · ` : "" }}{{ megabytes(image.bytes) }}
+        {{ image.width && image.height ? `${image.width}×${image.height} · ` : "" }}{{ bytes(image.bytes) }}
       </div>
     </div>
   </article>

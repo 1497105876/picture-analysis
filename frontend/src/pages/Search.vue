@@ -127,8 +127,14 @@ const MODES = [
 ];
 
 const timings = computed(() => result.value?.timings || {});
+// 基准取三者里的最大值：拿 total_ms 当分母的话，"总耗时"那条永远满格，等于没有信息
 const maxTiming = computed(() =>
-  Math.max(Number(timings.value.total_ms) || 0, 0.01),
+  Math.max(
+    Number(timings.value.total_ms) || 0,
+    Number(timings.value.keyword_ms) || 0,
+    Number(timings.value.vector_ms) || 0,
+    0.01,
+  ),
 );
 function width(key) {
   const v = Number(timings.value[key]) || 0;
@@ -252,10 +258,17 @@ function clearFilters() {
 
       <div v-if="result.degraded" class="banner banner-warn" style="margin-top: 10px">
         <Icon name="warning" :size="14" style="margin-top: 2px" />
-        <div class="small">
-          本次检索已降级：没有可用的嵌入档案（或嵌入调用失败），实际只走了关键词通路。
-          在「设置 → G1 服务档案」配好支持嵌入的档案可恢复混合检索。
+        <div class="stack small" style="gap: 2px; min-width: 0">
+          <div>本次检索已降级：没有可用的嵌入档案（或嵌入调用失败），实际只走了关键词通路。</div>
+          <div class="dim">
+            常见原因：档案里的「嵌入模型名」填了识图模型（不是所有模型都能做嵌入），
+            或者这个模型需要额外的启动参数。
+          </div>
         </div>
+        <router-link class="btn btn-sm" style="margin-left: auto" to="/settings">
+          去配嵌入模型
+        </router-link>
+        <router-link class="btn btn-sm" to="/jobs">看失败任务</router-link>
       </div>
 
       <div class="row small" style="gap: 8px; margin-top: 10px">

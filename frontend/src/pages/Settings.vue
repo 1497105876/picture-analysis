@@ -67,6 +67,12 @@ const hiddenByAdvanced = computed(() =>
 
 const dangerGroups = computed(() => settings.dangerGroups || []);
 
+// 分母只数「有配置项」的分组：G10 这类空分组永远搜不到，
+// 算进总数会显示成「16 / 17」，让人以为少了一个
+const totalGroups = computed(
+  () => (settings.groups || []).filter((g) => g.items.length).length,
+);
+
 // ---------------------------------------------------------------- 动作
 async function save() {
   saving.value = true;
@@ -353,7 +359,7 @@ onMounted(async () => {
           <span v-if="hiddenByAdvanced && !showAdvanced" class="dim">（{{ hiddenByAdvanced }} 项已隐藏）</span>
         </label>
         <span class="spacer"></span>
-        <span class="small dim">{{ visibleGroups.length }} / {{ (settings.groups || []).length }} 个分组匹配</span>
+        <span class="small dim">{{ visibleGroups.length }} / {{ totalGroups }} 个分组匹配</span>
       </div>
 
       <div style="padding: 0 var(--panel-pad) 12px">
