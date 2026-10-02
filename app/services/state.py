@@ -55,6 +55,7 @@ class AppState:
         self.thumbs_dir = self.data_dir / "thumbs"
         self.trash_dir = self.data_dir / "trash"
         self.exports_dir = self.data_dir / "exports"
+        self.backups_dir = self.data_dir / "backups"
         self.db = Database(self.data_dir / "library.db")
         self.dirs = DirectoriesRepo(self.db)
         self.images = ImagesRepo(self.db)

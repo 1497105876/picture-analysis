@@ -95,7 +95,11 @@ async function clearIndex() {
   busy.value = true;
   try {
     const res = await api.clearIndex();
-    notify(`索引已清空：移除 ${res.removed} 条记录，源文件一律未动`, "ok");
+    notify(
+      `索引已清空：移除 ${res.removed} 条记录，源文件未动` +
+        (res.backup ? `；快照已存到 ${res.backup}` : ""),
+      "ok",
+    );
     askClearIndex.value = false;
   } catch (e) {
     notify(e.message, "error");
@@ -260,7 +264,7 @@ onMounted(async () => {
             <Icon name="warning" :size="13" /> 清空索引
           </button>
           <span class="small dim">
-            删除所有目录的图片记录与任务，源文件一律不动；需要输入「清空索引」确认。
+            删除所有目录的图片记录与任务，源文件一律不动；动手前会自动备份一份快照。
           </span>
         </div>
       </div>
@@ -270,7 +274,12 @@ onMounted(async () => {
       :open="askClearIndex"
       title="清空索引"
       message="所有登记目录的图片索引记录与任务会被删除，库会回到空状态。"
-      :details="['源文件一律不动', '这张表里的识别结果、标签、OCR 全部清除', '可以重新扫描目录把索引建回来，但会重新消耗 AI 调用']"
+      :details="[
+        '源文件一律不动',
+        '识别描述、标签、OCR 全部清除；你手工改过的分类、评分、备注也跟着没',
+        '动手前会自动往 data/backups/ 存一份完整快照，事后还能翻出来对',
+        '可以重新扫描目录把索引建回来，但会重新消耗 AI 调用',
+      ]"
       confirm-word="清空索引"
       confirm-text="确认清空"
       danger

@@ -52,9 +52,32 @@ def detail(state: AppState, image_id: int) -> dict[str, Any]:
             "custom_fields": state.images.custom_values_of(image_id),
             "thumb": f"/api/thumbs/{image_id}",
             "has_thumb": (state.thumbs_dir / f"{image_id}.jpg").exists(),
+            "last_jobs": _recent_jobs(state, image_id),
         }
     )
     return item
+
+
+def _recent_jobs(state: AppState, image_id: int, limit: int = 3) -> list[dict[str, Any]]:
+    """这张图最近的任务，用于在详情里解释「为什么还没识别/为什么失败」。"""
+    rows = state.db.query(
+        "SELECT id, type, state, attempts, max_attempts, error, retry_at, updated_at "
+        "FROM jobs WHERE image_id=? ORDER BY id DESC LIMIT ?",
+        (image_id, limit),
+    )
+    return [
+        {
+            "id": int(r["id"]),
+            "type": r["type"],
+            "state": r["state"],
+            "attempts": int(r["attempts"] or 0),
+            "max_attempts": int(r["max_attempts"] or 0),
+            "error": r["error"] or "",
+            "retry_at": r["retry_at"] or "",
+            "updated_at": r["updated_at"],
+        }
+        for r in rows
+    ]
 
 
 def patch(state: AppState, image_id: int, payload: dict[str, Any]) -> dict[str, Any]:
@@ -172,6 +195,136 @@ def delete(
     return {"image_id": image_id, "mode": mode}
 
 
+# ---------- 排除表（只删索引留下的墓碑） ----------
+# 之前这条路是单向的：删了索引就再也回不来，界面上也看不到它存在。
+# 这一组接口把「删索引」变成可逆操作。
+
+
+def list_excluded(state: AppState, limit: int = 200) -> dict[str, Any]:
+    rows = state.images.list_exclusions(limit)
+    for row in rows:
+        p = Path(str(row["path"]))
+        row["filename"] = p.name
+        row["exists"] = p.is_file()
+        row["registered"] = bool(state.dirs.get(int(row["dir_id"])))
+    return {"items": rows, "count": state.images.exclusion_count()}
+
+
+def restore_excluded(state: AppState, exclusion_id: int) -> dict[str, Any]:
+    """解除排除并立刻重新入库（不需要用户再去点扫描）。"""
+    row = state.images.exclusion_row(exclusion_id)
+    if row is None:
+        raise NotFoundError(f"排除记录不存在：{exclusion_id}")
+    path = Path(str(row["path"]))
+    if not path.is_file():
+        raise ValidationAppError(
+            f"文件已不在原位置：{path}（可能是被你手动移动或删除了，"
+            f"可以用「移除记录」清掉这条墓碑）"
+        )
+    dir_row = state.dirs.get(int(row["dir_id"]))
+    if dir_row is None:
+        raise ValidationAppError("这张图原来的目录已经注销了，请重新登记该目录后再试")
+    if not bool(dir_row["enabled"]):
+        raise ValidationAppError("原目录当前是停用状态，先启用再恢复")
+    state.images.delete_exclusion(exclusion_id)
+    image_id, action = ingest.ingest_file(state, dir_row, path, seen=set())
+    return {"restored": str(path), "image_id": image_id, "action": action}
+
+
+def forget_excluded(state: AppState, exclusion_id: int) -> dict[str, Any]:
+    """只解除排除，不立刻入库——下次增量扫描会重新收录它。"""
+    if not state.images.delete_exclusion(exclusion_id):
+        raise NotFoundError(f"排除记录不存在：{exclusion_id}")
+    return {"forgotten": exclusion_id, "hint": "已解除排除，下次增量扫描会重新收录"}
+
+
+def clear_excluded(state: AppState, confirm: str) -> dict[str, Any]:
+    if confirm != "清空排除表":
+        raise ConfirmWordMismatch("确认词不匹配：请输入「清空排除表」")
+    removed = state.images.clear_all_exclusions()
+    return {"removed": removed, "hint": "墓碑已清除，重新扫描会把这些文件重新收录回来"}
+
+
+# ---------- 断链体检 ----------
+# 用户在资源管理器里改了名、挪了位置、或者直接删了文件，索引里那条记录还在：
+# 列表缩略图裂、点开详情取不到原图、重跑识别必失败。以前项目只统计了一个
+# missing_files 数字，没有任何地方看得到是哪几张、也没法清理。这里补上。
+
+
+def list_broken(state: AppState, limit: int = 500) -> dict[str, Any]:
+    dirs = {int(d["id"]): d for d in state.dirs.list()}
+    broken: list[dict[str, Any]] = []
+    scanned = 0
+    for row in state.images.link_rows():
+        scanned += 1
+        path = Path(str(row["path"]))
+        if path.is_file():
+            continue
+        dir_row = dirs.get(int(row["dir_id"]))
+        broken.append(
+            {
+                "id": int(row["id"]),
+                "path": str(row["path"]),
+                "filename": str(row["filename"] or path.name),
+                "dir_id": int(row["dir_id"]),
+                "dir_path": str(dir_row["path"]) if dir_row is not None else None,
+                "dir_registered": dir_row is not None,
+                "hidden": bool(row["hidden"]),
+                "flagged": bool(row["missing"]),
+                "mtime": row["mtime"],
+            }
+        )
+        if len(broken) >= limit:
+            break
+    return {"items": broken, "count": len(broken), "scanned": scanned}
+
+
+def prune_broken(
+    state: AppState, ids: list[int], exclude: bool = False, confirm: str = ""
+) -> dict[str, Any]:
+    """把断链条目从索引里摘掉。
+
+    默认只删索引、不留墓碑——文件要是哪天挪回来，增量扫描会重新收录它。
+    exclude=True 才登记排除（等于「以后都别再收录这张」）。
+    """
+    if not ids:
+        raise ValidationAppError("未选择任何条目")
+    if exclude and confirm != "清理并排除":
+        raise ConfirmWordMismatch("确认词不匹配：请输入「清理并排除」")
+    pruned: list[int] = []
+    skipped: list[int] = []
+    for image_id in ids:
+        row = state.images.get(image_id) or state.images.get_hidden(image_id)
+        if row is None:
+            skipped.append(image_id)
+            continue
+        path = Path(str(row["path"]))
+        if path.is_file():
+            skipped.append(image_id)  # 文件回来了就别删，交给扫描刷新
+            continue
+        if exclude:
+            state.images.exclude_path(int(row["dir_id"]), str(row["path"]))
+        state.images.delete(image_id)
+        pruned.append(image_id)
+    if pruned:
+        state.notice(
+            "prune",
+            f"清理断链条目 {len(pruned)} 条" + ("（并登记排除）" if exclude else ""),
+            "info",
+        )
+    return {"pruned": pruned, "skipped": skipped, "count": len(pruned)}
+
+
+def refresh_broken(state: AppState, dir_id: int) -> dict[str, Any]:
+    """重新扫一遍目录：文件还在的会自动把 missing 标记抹掉。"""
+    dir_row = state.dirs.get(dir_id)
+    if dir_row is None:
+        raise NotFoundError(f"目录不存在：{dir_id}")
+    result = ingest.scan_directory(state, dir_id)
+    result["dir_id"] = dir_id
+    return result
+
+
 def rename(state: AppState, image_id: int, new_name: str) -> dict[str, Any]:
     image = _image_or_404(state, image_id)
     new_name = str(new_name).strip()
@@ -206,6 +359,25 @@ def move_to(state: AppState, image_id: int, target_dir_id: int) -> dict[str, Any
     state.images.update_any(image_id, path=str(dest), dir_id=target_dir_id, filename=dest.name)
     state.images.sync_fts(image_id)
     return detail(state, image_id)
+
+
+def snapshot_index(state: AppState) -> dict[str, Any]:
+    """清空索引 / 注销目录之前先落一份完整快照到 data/backups/。
+
+    这两个操作会把人工打的分类、描述、标签、评分、备注一起带走——AI 结果重跑还能
+    回来，人一行行标的东西回不来。所以不留选择余地，直接先备份。
+    """
+    rows: list[dict[str, Any]] = []
+    for row in state.images.link_rows():
+        try:
+            rows.append(detail(state, int(row["id"])))
+        except NotFoundError:
+            continue
+    state.backups_dir.mkdir(parents=True, exist_ok=True)
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    target = state.backups_dir / f"index-{stamp}.json"
+    target.write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"path": str(target), "count": len(rows)}
 
 
 def export(state: AppState, ids: list[int], fmt: str = "json") -> dict[str, Any]:

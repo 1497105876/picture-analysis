@@ -35,3 +35,19 @@
 - 测试：60 用例全绿，`pytest --cov-fail-under=80` 实测覆盖率 **88%**；
   ruff / ruff format / mypy strict（54 文件）/ 架构门禁全部通过
 - 设计口径固化：`docs/design.md` 第 9 节（排序校验位置、暂停口径、日界、批量端点等）
+
+### Added（第三版 · 把「删除」做成可逆的）
+
+- **排除表可见可逆**：`GET/DELETE /api/excluded`、`POST /api/excluded/{id}/restore`——
+  「只删索引」留下的墓碑以前完全不可见也撤不回，现在回收站页分「待恢复 / 已排除」两个标签，
+  可一键解除排除并**立刻重新入库**，或只移除记录等下次增量扫描重新收录
+- **断链体检**：`GET /api/health/broken`、`POST /api/health/prune`、`POST /api/health/rescan/{id}`，
+  新增 `/health` 页面。源文件被改名/挪走/删除后索引里的死链以前只有一个统计数字，
+  现在逐条列出并可「重扫目录」（文件还在就自动对上）或「清理选中」
+- **清空索引 / 注销目录前自动快照**：`manage_svc.snapshot_index` 先落一份完整 JSON 到
+  `data/backups/`，接口返回备份路径并显示在界面上——人工标注不可再生，AI 结果才可再生
+- 同义词组、术语权重支持删除（`DELETE /api/synonyms`、`DELETE /api/term-weights`），
+  此前只进不出，写错一次就永久留在检索里
+- 迁移 `003_excluded_id.sql`：排除表重建并补自增主键，墓碑可被单条定位
+- 测试：新增 `tests/test_recovery.py`（8 条可逆性 AC）；全量 pytest 全绿 + ruff/mypy/架构门禁通过
+- 复盘文档：`docs/第二次/07-用户场景全量复盘.md`（全生命周期场景逐条过，标注仍敞开项）

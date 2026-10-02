@@ -16,6 +16,8 @@ import TagInput from "../components/TagInput.vue";
 const loading = ref(true);
 const askDeleteCat = ref(null);
 const askDeleteField = ref(null);
+const askDelSyn = ref(null);
+const askDelWeight = ref(null);
 
 const catForm = reactive({ name: "", color: "#64748b", emoji: "", editName: "" });
 const fieldForm = reactive({ name: "", type: "text", options: [] });
@@ -155,6 +157,32 @@ function editSynonym(group) {
   synForm.terms = [...(synonyms.value[group] || [])];
 }
 
+async function removeSynonym() {
+  const group = askDelSyn.value;
+  askDelSyn.value = null;
+  if (!group) return;
+  try {
+    await api.delSynonyms(group);
+    notify(`同义词组「${group}」已删除`, "ok");
+    await loadEnhance();
+  } catch (e) {
+    notify(e.message, "error");
+  }
+}
+
+async function removeWeight() {
+  const term = askDelWeight.value;
+  askDelWeight.value = null;
+  if (!term) return;
+  try {
+    await api.delTermWeight(term);
+    notify(`术语「${term}」的权重已删除，回到默认 1.0`, "ok");
+    await loadEnhance();
+  } catch (e) {
+    notify(e.message, "error");
+  }
+}
+
 async function addWeight() {
   if (!weightForm.term.trim()) return notify("术语不能为空", "warn");
   try {
@@ -270,7 +298,10 @@ onMounted(load);
             <span class="tag tag-accent">{{ group }}</span>
             <span class="wrap-anywhere">{{ terms.join("、") }}</span>
           </span>
-          <button class="btn btn-xs" @click="editSynonym(group)">编辑</button>
+          <span class="row" style="gap: 6px; flex: none">
+            <button class="btn btn-xs" @click="editSynonym(group)">编辑</button>
+            <button class="btn btn-xs btn-danger" @click="askDelSyn = group">删除</button>
+          </span>
         </div>
         <div v-if="!Object.keys(synonyms).length" class="small dim">还没有同义词组</div>
         <div class="row" style="gap: 8px; align-items: flex-start">
@@ -286,7 +317,15 @@ onMounted(load);
     <Panel title="术语权重" :count="Object.keys(weights).length" subtitle="给某些词加重，让它在融合排序里更靠前" collapsible>
       <div class="stack-3">
         <div class="row" style="gap: 6px">
-          <span v-for="(w, t) in weights" :key="t" class="tag tag-outline">{{ t }} × {{ w }}</span>
+          <button
+            v-for="(w, t) in weights"
+            :key="t"
+            class="tag tag-outline term-chip"
+            :title="`点一下删除「${t}」的权重`"
+            @click="askDelWeight = t"
+          >
+            {{ t }} × {{ w }} <span class="dim">✕</span>
+          </button>
           <span v-if="!Object.keys(weights).length" class="small dim">还没有设置权重</span>
         </div>
         <div class="row" style="gap: 8px">
@@ -319,6 +358,28 @@ onMounted(load);
       @close="askDeleteField = null"
       @confirm="confirmDeleteField"
     />
+
+    <ConfirmDialog
+      :open="Boolean(askDelSyn)"
+      title="删除同义词组"
+      :message="`删除同义词组「${askDelSyn}」？`"
+      :details="['删掉后这组词在检索里不再互相展开', '图片本身和标签都不受影响']"
+      confirm-text="确认删除"
+      danger
+      @close="askDelSyn = null"
+      @confirm="removeSynonym"
+    />
+
+    <ConfirmDialog
+      :open="Boolean(askDelWeight)"
+      title="删除术语权重"
+      :message="`删除术语「${askDelWeight}」的权重？`"
+      :details="['删除后该词回到默认权重 1.0', '不影响已入库的图片']"
+      confirm-text="确认删除"
+      danger
+      @close="askDelWeight = null"
+      @confirm="removeWeight"
+    />
   </div>
 </template>
 
@@ -343,5 +404,15 @@ onMounted(load);
   height: 10px;
   border-radius: 50%;
   flex: none;
+}
+/* 权重小胶囊本身就是删除按钮，鼠标放上去才提示可点 */
+.term-chip {
+  cursor: pointer;
+  font: inherit;
+  background: none;
+}
+.term-chip:hover {
+  border-color: var(--danger);
+  color: var(--danger);
 }
 </style>

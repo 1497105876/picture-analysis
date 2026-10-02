@@ -181,8 +181,11 @@ const askRemoveDir = ref(null);
 async function confirmRemoveDir() {
   const d = askRemoveDir.value;
   try {
-    await api.deleteDirectory(d.id);
-    notify(`已注销「${d.path}」，源文件未动`, "ok");
+    const res = await api.deleteDirectory(d.id);
+    notify(
+      `已注销「${d.path}」，源文件未动；索引快照存在 ${res.backup || "data/backups/"}`,
+      "ok",
+    );
     askRemoveDir.value = null;
     await Promise.all([loadDirs(), reload()]);
   } catch (e) {
@@ -676,7 +679,12 @@ const aiHint = computed(() => {
       :open="Boolean(askRemoveDir)"
       title="注销目录"
       :message="`注销「${askRemoveDir?.path}」后，该目录下所有图片的索引会被移除。`"
-      :details="['源文件一律不动', '可以重新登记把它找回来', '已登记为「仅移除索引」的文件在重新登记后仍不会自动回来']"
+      :details="[
+        '源文件一律不动',
+        '这个目录下的人工标注会跟着索引一起没，注销前会自动往 data/backups/ 存一份快照',
+        '重新登记目录可以把索引建回来',
+        '已登记为「仅移除索引」的文件在重新登记后仍不会自动回来，想让它回来去回收站→已排除点恢复',
+      ]"
       confirm-text="确认注销"
       danger
       :busy="batchBusy"

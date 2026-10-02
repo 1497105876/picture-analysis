@@ -97,6 +97,19 @@ def test_synonyms_and_term_weights(
     assert weight.status_code == 200
     assert client.get("/api/term-weights").json()["weights"]["测试"] == 3.0
 
+    # 只进不出等于写错一次就永久留在检索里，这里守住「能删」
+    assert client.delete("/api/synonyms", params={"group": "水域"}).status_code == 200
+    assert client.get("/api/synonyms").json()["groups"] == {}
+    gone = client.get("/api/search", params={"q": "海边", "mode": "keyword"}).json()
+    assert gone["total"] == 0, "同义词组删掉后不该再互相展开"
+
+    assert client.delete("/api/term-weights", params={"term": "测试"}).status_code == 200
+    assert client.get("/api/term-weights").json()["weights"] == {}
+
+    assert client.delete("/api/synonyms", params={"group": "不存在"}).status_code >= 400
+    assert client.delete("/api/term-weights", params={"term": "没设过"}).status_code >= 400
+    assert client.delete("/api/synonyms").status_code >= 400
+
 
 def test_search_history_on_off_clear(
     client: TestClient, library: Path, fake_clock: FakeClock

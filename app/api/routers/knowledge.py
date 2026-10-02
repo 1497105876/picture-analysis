@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Body, Request
+from fastapi import APIRouter, Body, Query, Request
 
 from app.api.deps import get_state
-from app.domain.errors import ValidationAppError
+from app.domain.errors import NotFoundError, ValidationAppError
 from app.services import catalog_svc, chat_svc, entities_svc, rules_svc
 
 router = APIRouter()
@@ -260,6 +260,17 @@ def put_synonyms(request: Request, payload: dict[str, Any] = Body(default={})) -
     return {"group": group, "terms": terms}
 
 
+@router.delete("/api/synonyms")
+def delete_synonyms(request: Request, group: str = Query(default="")) -> dict[str, Any]:
+    """删掉一个同义词组——以前只进不出，写错一次就永久留在检索里。"""
+    name = group.strip()
+    if not name:
+        raise ValidationAppError("要删哪一组？请带上 group 参数")
+    if not get_state(request).catalog.delete_synonym_group(name):
+        raise NotFoundError(f"同义词组不存在：{name}")
+    return {"deleted": name}
+
+
 @router.get("/api/term-weights")
 def list_term_weights(request: Request) -> dict[str, Any]:
     return {"weights": get_state(request).search.term_weights()}
@@ -277,3 +288,14 @@ def put_term_weight(request: Request, payload: dict[str, Any] = Body(default={})
         raise ValidationAppError("权重必须是数字") from exc
     state.catalog.set_term_weight(term, weight)
     return {"term": term, "weight": weight}
+
+
+@router.delete("/api/term-weights")
+def delete_term_weight(request: Request, term: str = Query(default="")) -> dict[str, Any]:
+    """删掉一条术语权重，恢复成默认的 1.0。"""
+    name = term.strip()
+    if not name:
+        raise ValidationAppError("要删哪个术语？请带上 term 参数")
+    if not get_state(request).catalog.delete_term_weight(name):
+        raise NotFoundError(f"该术语没有设置过权重：{name}")
+    return {"deleted": name}

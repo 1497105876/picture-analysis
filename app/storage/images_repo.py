@@ -148,12 +148,24 @@ class ImagesRepo:
 
     # ---------- 删除索引排除（增量扫描墓碑） ----------
 
-    def exclude_path(self, dir_id: int, path: str) -> None:
-        """只删索引时登记：该路径后续增量扫描一律跳过，不再重新入库。"""
-        self._db.execute(
-            "INSERT OR REPLACE INTO excluded_images(dir_id, path, deleted_at) VALUES(?,?,?)",
+    def exclude_path(self, dir_id: int, path: str) -> int:
+        """只删索引时登记：该路径后续增量扫描一律跳过，不再重新入库。
+
+        同一路径重复登记时只刷新时间、保留原 id——界面上的行不会因为重复删除而跳号。
+        """
+        row = self._db.query_one(
+            "SELECT id FROM excluded_images WHERE dir_id=? AND path=?", (dir_id, path)
+        )
+        if row is not None:
+            self._db.execute(
+                "UPDATE excluded_images SET deleted_at=? WHERE id=?", (now_iso(), int(row["id"]))
+            )
+            return int(row["id"])
+        cursor = self._db.execute(
+            "INSERT INTO excluded_images(dir_id, path, deleted_at) VALUES(?,?,?)",
             (dir_id, path, now_iso()),
         )
+        return int(cursor.lastrowid or 0)
 
     def excluded_paths(self, dir_id: int) -> frozenset[str]:
         rows = self._db.query("SELECT path FROM excluded_images WHERE dir_id=?", (dir_id,))
@@ -161,6 +173,44 @@ class ImagesRepo:
 
     def clear_exclusions(self, dir_id: int) -> None:
         self._db.execute("DELETE FROM excluded_images WHERE dir_id=?", (dir_id,))
+
+    def list_exclusions(self, limit: int = 200) -> list[dict[str, Any]]:
+        """排除表清单（供界面查看与恢复）。"""
+        return rows_to_dicts(
+            self._db.query(
+                "SELECT e.id, e.dir_id, e.path, e.deleted_at, d.path AS dir_path "
+                "FROM excluded_images e LEFT JOIN directories d ON d.id=e.dir_id "
+                "ORDER BY e.id DESC LIMIT ?",
+                (limit,),
+            )
+        )
+
+    def link_rows(self) -> list[dict[str, Any]]:
+        """索引里所有条目的落盘路径（含隐藏区），供体检逐条比对磁盘。"""
+        rows: list[dict[str, Any]] = []
+        for table in ("images", "hidden_images"):
+            for row in self._db.query(
+                f"SELECT id, path, filename, dir_id, missing, mtime FROM {table} ORDER BY id"
+            ):
+                item = dict(row)
+                item["hidden"] = table == "hidden_images"
+                rows.append(item)
+        return rows
+
+    def exclusion_row(self, exclusion_id: int) -> dict[str, Any] | None:
+        row = self._db.query_one("SELECT * FROM excluded_images WHERE id=?", (exclusion_id,))
+        return dict(row) if row is not None else None
+
+    def delete_exclusion(self, exclusion_id: int) -> bool:
+        cursor = self._db.execute("DELETE FROM excluded_images WHERE id=?", (exclusion_id,))
+        return int(cursor.rowcount or 0) > 0
+
+    def clear_all_exclusions(self) -> int:
+        cursor = self._db.execute("DELETE FROM excluded_images")
+        return int(cursor.rowcount or 0)
+
+    def exclusion_count(self) -> int:
+        return int(self._db.scalar("SELECT COUNT(*) FROM excluded_images") or 0)
 
     # ---------- FTS 同步 ----------
 

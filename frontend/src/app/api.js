@@ -178,8 +178,22 @@ export const api = {
   deleteCustomField: (id) => http.del(`/api/custom-fields/${id}`),
   synonyms: () => http.get("/api/synonyms"),
   putSynonyms: (group, terms) => http.put("/api/synonyms", { group, terms }),
+  delSynonyms: (group) => http.del("/api/synonyms", { group }),
   termWeights: () => http.get("/api/term-weights"),
   putTermWeight: (term, weight) => http.put("/api/term-weights", { term, weight }),
+  delTermWeight: (term) => http.del("/api/term-weights", { term }),
+
+  // ---- ops.py 排除表（只删索引留下的墓碑，可恢复） ----
+  excluded: (limit = 200) => http.get("/api/excluded", { limit }),
+  restoreExcluded: (id) => http.post(`/api/excluded/${id}/restore`, {}),
+  forgetExcluded: (id) => http.del(`/api/excluded/${id}`),
+  clearExcluded: () => http.del("/api/excluded", { confirm: "清空排除表" }),
+
+  // ---- ops.py 断链体检 ----
+  broken: (limit = 500) => http.get("/api/health/broken", { limit }),
+  pruneBroken: (ids, exclude) =>
+    http.post("/api/health/prune", { ids, exclude: !!exclude, confirm: exclude ? "清理并排除" : "" }),
+  rescanDir: (dirId) => http.post(`/api/health/rescan/${dirId}`, {}),
 
   // ---- ops.py ----
   jobs: (state) => http.get("/api/jobs", { state: state || undefined }),

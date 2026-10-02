@@ -16,6 +16,7 @@ const routes = [
   { path: "/ops", component: () => import("./pages/Ops.vue"), meta: { title: "运维", icon: "gear" } },
   { path: "/hidden", component: () => import("./pages/Hidden.vue"), meta: { title: "隐藏区", icon: "eye-off" } },
   { path: "/trash", component: () => import("./pages/Trash.vue"), meta: { title: "回收站", icon: "trash" } },
+  { path: "/health", component: () => import("./pages/Health.vue"), meta: { title: "断链体检", icon: "unlink" } },
   { path: "/settings", component: () => import("./pages/Settings.vue"), meta: { title: "设置", icon: "gear" } },
   { path: "/:pathMatch(.*)*", redirect: "/gallery" },
 ];

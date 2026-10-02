@@ -63,8 +63,13 @@ def update_directory(
 
 @router.delete("/api/directories/{dir_id}")
 def delete_directory(dir_id: int, request: Request) -> dict[str, Any]:
-    """注销目录：索引移除，源文件一律不动。"""
-    return ingest.unregister_directory(get_state(request), dir_id)
+    """注销目录：索引移除，源文件一律不动。注销前先给索引留一份快照。"""
+    state = get_state(request)
+    snapshot = manage_svc.snapshot_index(state)
+    result = ingest.unregister_directory(state, dir_id)
+    result["backup"] = snapshot["path"]
+    result["backed_up"] = snapshot["count"]
+    return result
 
 
 @router.post("/api/scan/{dir_id}")

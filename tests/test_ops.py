@@ -149,7 +149,17 @@ def test_clear_index_danger_requires_confirm(
     assert wrong.json()["error"]["code"] == "CONFIRM_WORD_MISMATCH"
     assert client.get("/api/images").json()["total"] == 3
 
+    # 清空索引会把人工标注一起带走，所以必须自动留一份快照
+    target = client.get("/api/images").json()["items"][0]
+    client.patch(f"/api/images/{target['id']}", json={"category": "风景", "tags": ["手标"]})
+
     ok = client.post("/api/danger/clear-index", json={"confirm": "清空索引"}).json()
     assert ok["removed"] == 3
     assert client.get("/api/images").json()["total"] == 0
     assert (library / "cat_portrait.png").is_file()  # 源文件不动
+
+    backup = Path(ok["backup"])
+    assert backup.is_file(), "清空索引前必须自动落一份快照"
+    assert ok["backed_up"] == 3
+    dumped = backup.read_text(encoding="utf-8")
+    assert "风景" in dumped and "手标" in dumped, "人工标注要能在快照里找回来"

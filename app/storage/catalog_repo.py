@@ -24,10 +24,16 @@ class CatalogRepo:
     # ---------- 分类 ----------
 
     def list_categories(self, include_inactive: bool = False) -> list[dict[str, Any]]:
-        sql = "SELECT * FROM categories"
+        # usage = 当前打上这个分类的图片数，删除/停用前先让人看到影响面
+        sql = (
+            "SELECT c.*, "
+            "(SELECT COUNT(*) FROM images i "
+            " WHERE COALESCE(i.category_manual, i.category_ai) = c.name) AS usage "
+            "FROM categories c"
+        )
         if not include_inactive:
-            sql += " WHERE active=1"
-        return rows_to_dicts(self._db.query(sql + " ORDER BY sort, id"))
+            sql += " WHERE c.active=1"
+        return rows_to_dicts(self._db.query(sql + " ORDER BY c.sort, c.id"))
 
     def add_category(self, name: str, color: str, emoji: str) -> int:
         cursor = self._db.execute(
@@ -179,7 +185,13 @@ class CatalogRepo:
     # ---------- 自定义字段定义 ----------
 
     def list_custom_fields(self) -> list[dict[str, Any]]:
-        rows = rows_to_dicts(self._db.query("SELECT * FROM custom_fields ORDER BY sort, id"))
+        rows = rows_to_dicts(
+            self._db.query(
+                "SELECT f.*, "
+                "(SELECT COUNT(*) FROM custom_field_values v WHERE v.field_id=f.id) AS usage "
+                "FROM custom_fields f ORDER BY f.sort, f.id"
+            )
+        )
         for row in rows:
             row["options"] = loads(row.pop("options_json"), [])
         return rows
@@ -218,9 +230,17 @@ class CatalogRepo:
             result.setdefault(str(row["group_name"]), []).append(str(row["term"]))
         return result
 
+    def delete_synonym_group(self, group_name: str) -> bool:
+        cursor = self._db.execute("DELETE FROM synonyms WHERE group_name=?", (group_name,))
+        return int(cursor.rowcount or 0) > 0
+
     def set_term_weight(self, term: str, weight: float) -> None:
         self._db.execute(
             "INSERT INTO term_weights(term, weight) VALUES(?,?) "
             "ON CONFLICT(term) DO UPDATE SET weight=excluded.weight",
             (term, weight),
         )
+
+    def delete_term_weight(self, term: str) -> bool:
+        cursor = self._db.execute("DELETE FROM term_weights WHERE term=?", (term,))
+        return int(cursor.rowcount or 0) > 0

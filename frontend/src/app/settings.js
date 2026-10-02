@@ -206,6 +206,7 @@ export const MODULES = [
   { key: "ops", to: "/ops", label: "运维", icon: "gear", group: "运维" },
   { key: "hidden", to: "/hidden", label: "隐藏区", icon: "eye-off", group: "运维" },
   { key: "trash", to: "/trash", label: "回收站", icon: "trash", group: "运维" },
+  { key: "health", to: "/health", label: "断链体检", icon: "unlink", group: "运维" },
 ];
 
 const DEFAULT_MODULES = [
@@ -218,6 +219,7 @@ const DEFAULT_MODULES = [
   "chat",
   "hidden",
   "trash",
+  "health",
   "jobs",
   "proposals",
 ];
